@@ -55,6 +55,56 @@ function createSidebar() {
   });
 }
 
+// --- SafeLinks / URL-wrapper decoder ---
+function decodeWrappedUrl(href) {
+  if (!href) return href;
+  try {
+    // Microsoft SafeLinks: safelinks.protection.outlook.com?url=...
+    if (href.includes('safelinks.protection.outlook.com')) {
+      const u = new URL(href);
+      const decoded = u.searchParams.get('url');
+      if (decoded) return decodeURIComponent(decoded);
+    }
+    // Trend Micro IMSVA / Email Security: various param names
+    if (href.includes('trendmicro') || href.includes('imsva') || href.includes('tmase')) {
+      const u = new URL(href);
+      const decoded = u.searchParams.get('url') || u.searchParams.get('u') || u.searchParams.get('__u');
+      if (decoded) return decodeURIComponent(decoded);
+      // Trend Micro path-encoded: /redirect?url=BASE64
+      const b64 = u.searchParams.get('redirectUrl') || u.searchParams.get('r');
+      if (b64) { try { return atob(b64); } catch(e) {} }
+    }
+    // Proofpoint URLDefense v2: urldefense.proofpoint.com/v2/url?u=...
+    if (href.includes('urldefense') && href.includes('/v2/')) {
+      const u = new URL(href);
+      let raw = u.searchParams.get('u');
+      if (raw) {
+        raw = raw.replace(/-/g, '%').replace(/_/g, '/');
+        return decodeURIComponent(raw);
+      }
+    }
+    // Proofpoint URLDefense v3: urldefense.com/v3/__https://...
+    if (href.includes('urldefense') && href.includes('/v3/')) {
+      const match = href.match(/\/v3\/__([^_]+)__/);
+      if (match) return decodeURIComponent(match[1]);
+    }
+    // Mimecast: protect2.mimecast.com/s/...?domain=...&url=...
+    if (href.includes('mimecast.com')) {
+      const u = new URL(href);
+      const decoded = u.searchParams.get('url') || u.searchParams.get('u');
+      if (decoded) return decodeURIComponent(decoded);
+    }
+    // Generic: any URL with a ?url= or ?u= param that looks like a full URL
+    if (href.includes('?')) {
+      const u = new URL(href);
+      const decoded = u.searchParams.get('url') || u.searchParams.get('u');
+      if (decoded && (decoded.startsWith('http') || decoded.startsWith('%68%74'))) {
+        return decodeURIComponent(decoded);
+      }
+    }
+  } catch(e) {}
+  return href;
+}
 // --- Email Extraction ---
 function getReadingPane() {
   const candidates = [
@@ -137,13 +187,7 @@ function extractEmail() {
       try {
         const displayText = a.innerText.trim();
         let href = a.getAttribute('href') || '';
-        if (href.includes('safelinks.protection.outlook.com') || href.includes('urldefense') || href.includes('trendmicro')) {
-          try {
-            const u = new URL(href);
-            const urlParam = u.searchParams.get('url') || u.searchParams.get('u');
-            if (urlParam) href = decodeURIComponent(urlParam);
-          } catch(e) {}
-        }
+        href = decodeWrappedUrl(href);
         if (!href || href.startsWith('mailto:') || href.startsWith('#') || href.length < 10) return;
         let hrefDomain = '';
         try { hrefDomain = new URL(href).hostname.toLowerCase(); } catch(e) { hrefDomain = href.slice(0, 60); }
@@ -160,7 +204,7 @@ function extractEmail() {
         const mismatch = displayDomain && hrefDomain &&
           !hrefDomain.includes(displayDomain.replace(/^www\./, '')) &&
           !displayDomain.includes(hrefDomain.replace(/^www\./, ''));
-        links.push({ display: displayText.slice(0, 80) || '(no text)', href: hrefDomain, mismatch });
+        links.push({ display: displayText.slice(0, 80) || '(no text)', href: hrefDomain, fullUrl: href, mismatch });
       } catch(e) {}
     });
   }
@@ -184,6 +228,7 @@ function extractEmail() {
   const highRiskFiles = attachments.filter(a => HIGH_RISK_EXTENSIONS.some(ext => a.endsWith(ext)));
   const suspiciousFiles = attachments.filter(a => SUSPICIOUS_EXTENSIONS.some(ext => a.endsWith(ext)));
 
+  const senderHasEmail = sender !== '(No sender found)' && sender.includes('@');
   return { subject, sender, senderHasEmail, body: body.slice(0, 3000), links: links.slice(0, 20), attachments, hasHighRiskAttachment, hasSuspiciousAttachment, highRiskFiles, suspiciousFiles };
 }
 
@@ -201,13 +246,7 @@ function revealLinks() {
     a.setAttribute('data-oe-revealed', '1');
     try {
       let href = a.getAttribute('href') || '';
-      if (href.includes('safelinks.protection.outlook.com') || href.includes('urldefense') || href.includes('trendmicro')) {
-        try {
-          const u = new URL(href);
-          const urlParam = u.searchParams.get('url') || u.searchParams.get('u');
-          if (urlParam) href = decodeURIComponent(urlParam);
-        } catch(e) {}
-      }
+      href = decodeWrappedUrl(href);
       if (!href || href.startsWith('mailto:') || href.startsWith('#') || href.length < 10) return;
       let domain = '';
       try { domain = new URL(href).hostname.toLowerCase(); } catch(e) { return; }
@@ -284,14 +323,18 @@ async function analyzeCurrentEmail() {
 
 IMPORTANT CONTEXT:
 - Current date/time: ${utcString} (UTC) / ${localString} (Mountain Time). Do not flag dates as suspicious if they fall within the current day across timezones.
-- Recipient organization domain: __TENANT_DOMAIN__
+- Recipient organization domain: streamflo.com
 - Sender: ${email.sender}
 - Outlook external org warning present: ${isOutlookExternal ? 'YES - Microsoft has confirmed this is from an external organization.' : 'NO - treat as internal unless you find an external email address in body/signature'}
 - If sender is "(No sender found)" that is a technical extraction issue, NOT a red flag - do not flag it as suspicious
 - Do NOT assume external based on display name alone
-- SharePoint/OneDrive links from __TENANT_DOMAIN__ or sharepoint.com are INTERNAL collaboration links, never flag as suspicious
+- SharePoint/OneDrive links from streamflo.com or sharepoint.com are INTERNAL collaboration links, never flag as suspicious
 - Microsoft system emails (PowerAutomateNoReply, SharePoint, Teams notifications) from microsoft.com are legitimate system notifications, not suspicious
-__CUSTOM_PROMPT__
+ENVIRONMENT-SPECIFIC RULES (CRITICAL - follow these exactly):
+- This org uses Trend Micro and Microsoft SafeLinks. ALL links will route through safelinks.protection.outlook.com or Trend Micro URL filters. Do NOT flag these wrappers - links are already decoded.
+- Known trusted external vendors/services for this org: sharegate.com, sharegate-software.com (SharePoint migration/management tool). Emails from Sharegate are expected and legitimate.
+- If sender is '(No sender found)' this is a known technical extraction limitation of Outlook's web rendering - this is NOT a red flag and MUST NOT be listed as a finding. Do not mention missing sender info at all.
+- Do not flag the absence of a visible sender email address as suspicious if the email content is otherwise legitimate business communication.
 
 KEY RULES:
 1. NEVER give any email a free pass based on sender domain alone - even internal senders can be compromised.
@@ -433,6 +476,10 @@ function showResult(result, email) {
       <div class="oe-section-title">Summary</div>
       <p>${result.summary}</p>
     </div>
+    ${showWarning ? `
+    <div class="oe-warning-banner">
+      ⚠️ If you did not request this, do not click any links and <strong>report this to your IT security team immediately.</strong>
+    </div>` : ''}
     ${findingsHTML ? `
     <div class="oe-section">
       <div class="oe-section-title">🔍 What We Found — tap each to learn more</div>
@@ -444,7 +491,7 @@ function showResult(result, email) {
       ${email.links.map(l => `
         <div class="oe-link ${l.mismatch ? 'oe-link-mismatch' : ''}">
           <span class="oe-link-display">${l.display}</span>
-          <span class="oe-link-dest">→ ${l.href}${l.mismatch ? ' ⚠️ GOES SOMEWHERE DIFFERENT' : ''}</span>
+          <span class="oe-link-dest" style="display:block;word-break:break-all;font-size:0.82em;margin-top:3px;color:#555;">? <a href="${l.fullUrl || l.href}" style="color:#1a6eb5;text-decoration:none;" title="${l.fullUrl || l.href}">${l.fullUrl || l.href}</a>${l.mismatch ? ' <span style="color:#cc0000;font-weight:bold;">? DESTINATION MISMATCH</span>' : ''}</span>
         </div>`).join('')}
     </div>` : ''}
     ${result.lesson ? `
@@ -452,10 +499,7 @@ function showResult(result, email) {
       <div class="oe-lesson-title">📚 Remember for next time</div>
       <div class="oe-lesson-text">${result.lesson}</div>
     </div>` : ''}
-    ${showWarning ? `
-    <div class="oe-warning-banner">
-      ⚠️ If you did not request this, do not click any links and <strong>report this to your IT security team immediately.</strong>
-    </div>` : ''}
+
     <div class="oe-section">
       <div class="oe-section-title">✅ Suggested Action</div>
       <p>${result.suggested_action}</p>

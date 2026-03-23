@@ -137,8 +137,11 @@
 }
 .oe-link:last-child { border-bottom: none; }
 .oe-link-display { display: block; color: #444; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.oe-link-dest { display: block; color: #0078d4; font-weight: 500; }
+.oe-link-dest { display: block; color: #555; font-weight: 400; word-break: break-all; white-space: normal; line-height: 1.4; }
+.oe-link-dest a { color: #1a6eb5; text-decoration: none; }
+.oe-link-dest a:hover { text-decoration: underline; }
 .oe-link-mismatch .oe-link-dest { color: #a80000; font-weight: 700; }
+.oe-link-mismatch .oe-link-dest a { color: #a80000; }
 
 /* ── Email ready state ───────────────────────────────────── */
 .oe-email-ready { padding: 8px 0; }
