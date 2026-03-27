@@ -44,6 +44,34 @@ interface EmailData {
   clientTimestamp: string
 }
 
+// ── Trusted Microsoft system senders ─────────────────────────────────────────
+// These senders are legitimate Microsoft automated notification services.
+// They will always show as "external organization" in Outlook because Microsoft
+// sends them from their own tenant, not the recipient's tenant. This is EXPECTED
+// and NORMAL behaviour — it is NOT a sign of phishing.
+const TRUSTED_MICROSOFT_SENDERS = [
+  "powerautomatenoreply@microsoft.com",
+  "no-reply@microsoft.com",
+  "noreply@microsoft.com",
+  "msa@communication.microsoft.com",
+  "microsoft-noreply@microsoft.com",
+  "sharepoint@communication.microsoft.com",
+  "teams@communication.microsoft.com",
+  "azure-noreply@microsoft.com",
+  "notify@email.windowsazure.com",
+  "admin@email.windowsazure.com",
+]
+
+function isTrustedMicrosoftSender(sender: string): boolean {
+  const s = sender.toLowerCase()
+  return TRUSTED_MICROSOFT_SENDERS.some(trusted => s.includes(trusted)) ||
+    (s.includes("@microsoft.com") && (
+      s.includes("noreply") || s.includes("no-reply") ||
+      s.includes("powerautomate") || s.includes("sharepoint") ||
+      s.includes("teams") || s.includes("azure") || s.includes("notify")
+    ))
+}
+
 // ── Prompt builder (all analysis logic lives here, not in the extension) ─────
 function buildPrompt(e: EmailData, customPrompt: string, tenantDomain: string): string {
   const now = new Date()
@@ -77,6 +105,17 @@ function buildPrompt(e: EmailData, customPrompt: string, tenantDomain: string): 
     ? "YES - Microsoft has confirmed this is from an external organization."
     : "NO - treat as internal unless you find an external email address in body/signature"
 
+  // Build a trust note that gets injected into the prompt when the sender is a known Microsoft system address
+  const microsoftTrustNote = isTrustedMicrosoftSender(e.sender)
+    ? `TRUSTED MICROSOFT SYSTEM EMAIL: The sender "${e.sender}" is a known legitimate Microsoft automated notification service (Power Automate, SharePoint, Teams, Azure, etc.).
+CRITICAL RULES for this email:
+1. The "external organization" warning shown by Outlook is EXPECTED and NORMAL — Microsoft sends these notifications from their own tenant, not yours. This is NOT a red flag.
+2. SafeLinks-wrapped URLs pointing to make.powerautomate.com, portal.azure.com, admin.microsoft.com, sharepoint.com, teams.microsoft.com, or other Microsoft service domains are LEGITIMATE.
+3. Do NOT flag this email as phishing or suspicious solely because it is marked external or contains Microsoft service links.
+4. Still scan for actual red flags: credential harvesting, unexpected password resets, suspicious non-Microsoft link destinations, or content inconsistent with a system notification.
+5. If the email content matches expected Microsoft system notification patterns (flow alerts, subscription changes, service updates, security codes for services the user likely uses), lean toward SAFE.`
+    : ""
+
   return `You are a cybersecurity educator helping everyday office workers learn to identify email threats. Analyze the email below and respond ONLY with a JSON object - no markdown, no text outside the JSON.
 
 IMPORTANT CONTEXT:
@@ -87,7 +126,7 @@ IMPORTANT CONTEXT:
 - If sender is "(No sender found)" that is a technical extraction issue, NOT a red flag - do not flag it as suspicious
 - Do NOT assume external based on display name alone
 - ${sharePointLine}
-- Microsoft system emails (PowerAutomateNoReply, SharePoint, Teams notifications) from microsoft.com are legitimate system notifications, not suspicious
+${microsoftTrustNote}
 ${customLine}
 ENVIRONMENT-SPECIFIC RULES (CRITICAL - follow these exactly):
 - This org uses Trend Micro and Microsoft SafeLinks. ALL links will route through safelinks.protection.outlook.com or Trend Micro URL filters. Do NOT flag these wrappers - links are already decoded.
