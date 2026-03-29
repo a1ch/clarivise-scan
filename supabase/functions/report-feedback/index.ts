@@ -1,4 +1,4 @@
-﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const EXTENSION_TOKEN      = Deno.env.get("EXTENSION_TOKEN")!
@@ -34,10 +34,7 @@ serve(async (req) => {
     return json({ error: "Method not allowed" }, 405, corsHeaders)
   }
 
-  const headerToken = req.headers.get("x-extension-token") ?? ""
-  let rawBody: unknown; try { rawBody = await req.json() } catch { rawBody = null }
-  const bodyToken = (rawBody as Record<string,unknown>)?.token as string ?? ""
-  const token = headerToken || bodyToken
+  const token = req.headers.get("x-extension-token") ?? ""
   if (!token || token !== EXTENSION_TOKEN) {
     return json({ error: "Unauthorized" }, 401, corsHeaders)
   }
@@ -52,7 +49,7 @@ serve(async (req) => {
   let userComment: string | null
 
   try {
-    const body = rawBody ?? await req.json()
+    const body = await req.json()
     feedbackType = body.feedbackType
     originalVerdict = typeof body.originalVerdict === "string"
       ? body.originalVerdict.slice(0, MAX_VERDICT_LEN)

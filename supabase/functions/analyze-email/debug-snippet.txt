@@ -1,3 +1,0 @@
-  const token = req.headers.get("x-extension-token") ?? ""
-  console.log("DEBUG token received:", JSON.stringify(token), "expected length:", EXTENSION_TOKEN?.length)
-  if (!token || token !== EXTENSION_TOKEN) {
