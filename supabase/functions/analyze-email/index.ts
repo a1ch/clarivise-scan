@@ -206,17 +206,14 @@ serve(async (req) => {
     return json({ error: "Method not allowed" }, 405, corsHeaders)
   }
 
-  const headerToken = req.headers.get("x-extension-token") ?? ""
-  let rawBody: unknown; try { rawBody = await req.json() } catch { rawBody = null }
-  const bodyToken = (rawBody as Record<string,unknown>)?.token as string ?? ""
-  const token = headerToken || bodyToken
+  const token = req.headers.get("x-extension-token") ?? ""
   if (!token || token !== EXTENSION_TOKEN) {
     return json({ error: "Unauthorized" }, 401, corsHeaders)
   }
 
   let parsedBody: unknown
   try {
-    parsedBody = rawBody ?? await req.json()
+    parsedBody = await req.json()
   } catch {
     return json({ error: "Invalid JSON" }, 400, corsHeaders)
   }
