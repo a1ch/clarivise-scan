@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!
@@ -206,14 +206,16 @@ serve(async (req) => {
     return json({ error: "Method not allowed" }, 405, corsHeaders)
   }
 
-  const token = req.headers.get("x-extension-token") ?? ""
+  const headerToken = req.headers.get("x-extension-token") ?? ""
+  let rawBody: unknown; try { rawBody = await req.json() } catch { rawBody = null }
+  const bodyToken = (rawBody as Record<string,unknown>)?.token as string ?? ""
+  const token = headerToken || bodyToken
   if (!token || token !== EXTENSION_TOKEN) {
-    return json({ error: "Unauthorized" }, 401, corsHeaders)
   }
 
   let parsedBody: unknown
   try {
-    parsedBody = await req.json()
+    parsedBody = rawBody ?? await req.json()
   } catch {
     return json({ error: "Invalid JSON" }, 400, corsHeaders)
   }
