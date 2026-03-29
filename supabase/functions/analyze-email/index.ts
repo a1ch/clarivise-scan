@@ -211,6 +211,7 @@ serve(async (req) => {
   const bodyToken = (rawBody as Record<string,unknown>)?.token as string ?? ""
   const token = headerToken || bodyToken
   if (!token || token !== EXTENSION_TOKEN) {
+    return json({ error: "Unauthorized" }, 401, corsHeaders)
   }
 
   let parsedBody: unknown
