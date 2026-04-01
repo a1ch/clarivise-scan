@@ -16,6 +16,7 @@ When you click Analyze Email, the following information is extracted from the cu
 
 - Email subject line
 - Sender display name
+- Recipient / To line (when visible in the reading pane)
 - Email body text (up to 3,000 characters)
 - Hyperlink display text and destination domains extracted from the email body
 - Attachment file names (if present)
@@ -35,7 +36,7 @@ No email content beyond these fields is collected or transmitted.
 | 4. Anthropic API | Analyzes the email and returns a verdict | Anthropic (see below) |
 | 5. Response | Result returned to your browser and displayed in the sidebar | You (local only) |
 
-Email content is processed transiently at each step. No email content is persisted at any point in this chain.
+Email content is processed transiently for inference. Full message bodies are **not** stored in your database; see **Scan Logging** below for what is retained (metadata and scores only).
 
 ## Anthropic API
 
@@ -55,15 +56,16 @@ For details, see [Supabase Privacy Policy](https://supabase.com/docs/company/pri
 
 ## Scan Logging
 
-Each analysis logs the following to a Supabase database for usage reporting:
+Each analysis logs the following to a Supabase database for usage reporting and troubleshooting:
 
 - A hashed identifier for the extension token (not the token itself)
 - Verdict (Safe / Suspicious / Spam / Phishing)
 - Phishing risk score and spam score
 - Response time
 - Timestamp
+- **Subject line, From, and To** — truncated lengths only (no full message body is stored in this table)
 
-**No email content, subject lines, sender names, or message bodies are logged.** Scan logs are used solely for usage monitoring and abuse prevention.
+**Message body text is not written to `scan_log`.** The Edge Function may also emit a single structured **log line** (subject / from / to, truncated) to Supabase’s function logs for the same operational purposes.
 
 ## Local Storage
 

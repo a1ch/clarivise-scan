@@ -44,6 +44,23 @@ function classifyAttachments(attachments: string[]): { highRisk: string[], suspi
 const RATE_LIMIT_WINDOW_MS = 5000
 const MAX_BODY_LENGTH = 3000
 const MAX_TENANT_DOMAIN_LEN = 253
+const MAX_LOG_SUBJECT_LEN = 300
+const MAX_LOG_ADDRESS_LEN = 500
+
+function clipLogField(s: string, max: number): string {
+  const t = (s || "").trim()
+  return t.length <= max ? t : t.slice(0, max) + "…"
+}
+
+/** Structured line for Supabase Edge Function log stream (Dashboard → Functions → Logs). */
+function logScanEnvelope(event: string, emailData: EmailData) {
+  console.log(JSON.stringify({
+    event,
+    subject: clipLogField(emailData.subject, 220),
+    from: clipLogField(emailData.sender, 220),
+    to: clipLogField(emailData.recipient ?? "(No recipient found)", 220),
+  }))
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface EmailLink {
@@ -56,6 +73,7 @@ interface EmailLink {
 interface EmailData {
   subject: string
   sender: string
+  recipient?: string
   senderHasEmail: boolean
   body: string
   links: EmailLink[]
@@ -369,6 +387,9 @@ serve(async (req) => {
     emailData.body = emailData.body.slice(0, MAX_BODY_LENGTH)
     emailData.subject = emailData.subject.slice(0, 300)
     emailData.sender = (emailData.sender || "(No sender found)").slice(0, 300)
+    emailData.recipient = typeof emailData.recipient === "string"
+      ? emailData.recipient.slice(0, MAX_LOG_ADDRESS_LEN)
+      : "(No recipient found)"
     emailData.links = (emailData.links || []).slice(0, 20)
     emailData.attachments = (emailData.attachments || []).slice(0, 20)
 
@@ -382,6 +403,18 @@ serve(async (req) => {
   }
 
   if (checkForGiftCardFraud(emailData.subject, emailData.body)) {
+    logScanEnvelope("scan_gift_card_rule", emailData)
+    supabase.from("scan_log").insert({
+      token_key: tokenKey,
+      verdict: "PHISHING",
+      phishing_score: 99,
+      spam_score: 10,
+      response_time_ms: null,
+      subject: clipLogField(emailData.subject, MAX_LOG_SUBJECT_LEN),
+      sender: clipLogField(emailData.sender, MAX_LOG_ADDRESS_LEN),
+      recipient: clipLogField(emailData.recipient, MAX_LOG_ADDRESS_LEN),
+    }).then(() => {})
+
     return json({ result: {
       verdict: 'PHISHING', phishing_score: 99, spam_score: 10,
       summary: 'This email contains a request for gift cards. This is one of the most common fraud tactics used against businesses — it is almost certainly a scam.',
@@ -424,12 +457,16 @@ serve(async (req) => {
     const clean = text.replace(/```json|```/g, "").trim()
     const parsed = JSON.parse(clean)
 
+    logScanEnvelope("scan_complete", emailData)
     supabase.from("scan_log").insert({
       token_key: tokenKey,
       verdict: parsed.verdict ?? "UNKNOWN",
       phishing_score: parsed.phishing_score ?? null,
       spam_score: parsed.spam_score ?? null,
       response_time_ms: responseTimeMs,
+      subject: clipLogField(emailData.subject, MAX_LOG_SUBJECT_LEN),
+      sender: clipLogField(emailData.sender, MAX_LOG_ADDRESS_LEN),
+      recipient: clipLogField(emailData.recipient, MAX_LOG_ADDRESS_LEN),
     }).then(() => {})
 
     return json({ result: parsed }, 200, corsHeaders)

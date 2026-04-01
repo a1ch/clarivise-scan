@@ -439,6 +439,7 @@ async function analyzeCurrentEmail() {
   const emailData = {
     subject: email.subject,
     sender: email.sender,
+    recipient: email.recipient,
     senderHasEmail: email.senderHasEmail,
     body: email.body,
     links: email.links,
