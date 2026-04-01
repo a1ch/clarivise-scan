@@ -1,8 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { hashToken, isExtensionTokenAllowed } from "../_shared/extension-auth.ts"
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!
-const EXTENSION_TOKEN   = Deno.env.get("EXTENSION_TOKEN")!
+/** Optional legacy single secret; clients may also use tokens issued via admin-console (DB). */
+const LEGACY_EXTENSION_TOKEN = Deno.env.get("EXTENSION_TOKEN") ?? undefined
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 
@@ -335,9 +337,15 @@ serve(async (req) => {
     (typeof raw?.oeAuth === "string" ? raw.oeAuth : "") ||
     (typeof raw?.token === "string" ? raw.token : "")
   const token = headerToken || bodyToken
-  if (!token || token !== EXTENSION_TOKEN) {
+  if (!token) {
     return json({ error: "Unauthorized" }, 401, corsHeaders)
   }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+  if (!await isExtensionTokenAllowed(supabase, token, LEGACY_EXTENSION_TOKEN)) {
+    return json({ error: "Unauthorized" }, 401, corsHeaders)
+  }
+
   if (
     parsedBody !== null &&
     typeof parsedBody === "object" &&
@@ -348,7 +356,6 @@ serve(async (req) => {
   }
 
   // ── Rate limiting ─────────────────────────────────────────────────────────
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
   const tokenKey = await hashToken(token)
   const now = Date.now()
   const windowStart = new Date(now - RATE_LIMIT_WINDOW_MS).toISOString()
