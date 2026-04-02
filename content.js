@@ -1,4 +1,4 @@
-// Outlook Email Evaluator - Content Script
+﻿// Outlook Email Evaluator - Content Script
 let sidebar = null;
 let lastEmailId = null;
 let observer = null;
@@ -28,23 +28,26 @@ function safeHttpUrl(raw) {
   return null;
 }
 
-function buildLinkRowHtml(l) {
+function buildLinkRowHtml(l, lookalikeHit) {
   const display = escapeHtml(l.display);
   const href = safeHttpUrl(l.fullUrl);
   const mismatch = l.mismatch
     ? ' <span style="color:#cc0000;font-weight:bold;">DESTINATION MISMATCH</span>'
     : '';
+  const lookalikeBadge = lookalikeHit
+    ? `<span class="oe-link-lookalike-badge" title="Impersonates ${escapeHtml(lookalikeHit.legitimateDomain)} via ${escapeHtml(lookalikeHit.technique)}">🎭 LOOKALIKE: ${escapeHtml(lookalikeHit.brand)}</span>`
+    : '';
   if (href) {
     const eh = escapeHtml(href);
     return `<div class="oe-link ${l.mismatch ? 'oe-link-mismatch' : ''}">
       <span class="oe-link-display">${display}</span>
-      <span class="oe-link-dest" style="display:block;word-break:break-all;font-size:0.82em;margin-top:3px;color:#555;">→ <a href="${eh}" rel="noopener noreferrer" target="_blank" style="color:#1a6eb5;text-decoration:none;" title="${eh}">${eh}</a>${mismatch}</span>
+      <span class="oe-link-dest" style="display:block;word-break:break-all;font-size:0.82em;margin-top:3px;color:#555;">→ <a href="${eh}" rel="noopener noreferrer" target="_blank" style="color:#1a6eb5;text-decoration:none;" title="${eh}">${eh}</a>${mismatch}${lookalikeBadge}</span>
     </div>`;
   }
   const fallback = escapeHtml(String(l.fullUrl || l.href || '').trim().slice(0, 2048));
   return `<div class="oe-link ${l.mismatch ? 'oe-link-mismatch' : ''}">
     <span class="oe-link-display">${display}</span>
-    <span class="oe-link-dest" style="display:block;word-break:break-all;font-size:0.82em;margin-top:3px;color:#555;">${fallback}${mismatch}</span>
+    <span class="oe-link-dest" style="display:block;word-break:break-all;font-size:0.82em;margin-top:3px;color:#555;">${fallback}${mismatch}${lookalikeBadge}</span>
   </div>`;
 }
 
@@ -339,15 +342,38 @@ function extractEmail() {
     });
   }
 
+  // --- Attachment scraping: cast a wide net across Outlook's dynamic DOM ---
   const attachments = [];
   try {
-    pane.querySelectorAll('[aria-label*="attachment" i],[class*="attachment" i],[class*="Attachment" i]').forEach(el => {
-      const name = el.getAttribute('aria-label') || el.innerText || '';
-      if (name.trim()) attachments.push(name.trim().toLowerCase());
+    const attachSeen = new Set();
+    const EXT_RE = /\.\w{2,5}$/i;
+    function addAttachment(raw) {
+      const name = (raw || '').trim().toLowerCase();
+      if (!name || !EXT_RE.test(name) || attachSeen.has(name)) return;
+      attachSeen.add(name);
+      attachments.push(name);
+    }
+    // Outlook attachment pills may be outside the reading pane - search full body
+    const attachRoot = document.body;
+    // Strategy 1: aria-label attributes that look like filenames
+    attachRoot.querySelectorAll('[aria-label]').forEach(el => {
+      const label = el.getAttribute('aria-label') || '';
+      if (EXT_RE.test(label) && label.length < 260) addAttachment(label);
     });
-    pane.querySelectorAll('[class*="attachmentName" i],[class*="fileName" i],[data-testid*="attachment" i]').forEach(el => {
-      const name = el.innerText || '';
-      if (name.trim()) attachments.push(name.trim().toLowerCase());
+    // Strategy 2: class-name-based selectors for attachment chips/pills
+    attachRoot.querySelectorAll(
+      '[class*="attachmentName" i],[class*="fileName" i],' +
+      '[class*="AttachmentName" i],[class*="FileName" i],' +
+      '[data-testid*="attachment" i],[data-testid*="Attachment" i],' +
+      '[class*="attachmentTile" i],[class*="attachmentCard" i]'
+    ).forEach(el => { addAttachment(el.innerText); });
+    // Strategy 3: leaf-node text inside an attachment container
+    attachRoot.querySelectorAll('span,div').forEach(el => {
+      if (el.children.length > 0) return;      const txt = (el.innerText || '').trim();
+      if (txt.length > 4 && txt.length < 200 && EXT_RE.test(txt) && !txt.includes('\n')) {
+        const parent = el.closest('[class*="attach" i],[class*="Attach" i],[aria-label*="attach" i]');
+        if (parent) addAttachment(txt);
+      }
     });
   } catch(e) {}
 
@@ -367,11 +393,130 @@ function extractEmail() {
   const senderHasEmail = sender !== '(No sender found)' && sender.includes('@');
   const HIGH_RISK_EXTS = ['.htm','.html','.js','.vbs','.vbe','.ps1','.wsf','.wsh','.jar','.hta'];
   const SUSPICIOUS_EXTS = ['.exe','.msi','.bat','.cmd','.iso','.img','.zip','.rar','.7z','.docm','.xlsm','.pptm','.lnk'];
-  const highRiskFiles = attachments.filter(n => HIGH_RISK_EXTS.some(ext => n.endsWith(ext)));
-  const suspiciousFiles = attachments.filter(n => SUSPICIOUS_EXTS.some(ext => n.endsWith(ext)));
+  const SAFE_DECOY_EXTS = ['.pdf','.doc','.docx','.xls','.xlsx','.ppt','.pptx','.txt','.png','.jpg','.jpeg','.gif','.csv'];
+
+  // Double-extension detection: e.g. "invoice.pdf.exe", "report.docx.js"
+  const doubleExtFiles = attachments.filter(n => {
+    const parts = n.split('.');
+    if (parts.length < 3) return false;
+    const finalExt = '.' + parts[parts.length - 1];
+    const penultExt = '.' + parts[parts.length - 2];
+    return (HIGH_RISK_EXTS.includes(finalExt) || SUSPICIOUS_EXTS.includes(finalExt)) && SAFE_DECOY_EXTS.includes(penultExt);
+  });
+
+  const highRiskFiles = [...new Set([
+    ...attachments.filter(n => HIGH_RISK_EXTS.some(ext => n.endsWith(ext))),
+    ...doubleExtFiles,
+  ])];
+  const suspiciousFiles = attachments.filter(n =>
+    !highRiskFiles.includes(n) && SUSPICIOUS_EXTS.some(ext => n.endsWith(ext))
+  );
   const hasHighRiskAttachment = highRiskFiles.length > 0;
   const hasSuspiciousAttachment = suspiciousFiles.length > 0;
-  return { subject, sender, senderHasEmail, recipient, body: body.slice(0, 3000), links: links.slice(0, 20), attachments, hasHighRiskAttachment, hasSuspiciousAttachment, highRiskFiles, suspiciousFiles };
+  const attachmentCount = attachments.length;
+  const hasHighAttachmentCount = attachmentCount >= 5;
+
+  return { subject, sender, senderHasEmail, recipient, body: body.slice(0, 3000), links: links.slice(0, 20), attachments, hasHighRiskAttachment, hasSuspiciousAttachment, highRiskFiles, suspiciousFiles, doubleExtFiles, attachmentCount, hasHighAttachmentCount };
+}
+// --- Header Signal Extraction ---
+// Outlook Web doesn't expose raw SMTP headers, but several header-derived
+// signals ARE visible in the DOM. We extract them here.
+function extractHeaderSignals(pane) {
+  const signals = {
+    replyTo: null,          // Reply-To address if different from sender
+    onBehalfOf: null,       // "Sent on behalf of" address
+    displayNameMismatch: false, // Display name implies different org than actual email
+    displayName: null,      // The display name portion of the sender
+    senderEmail: null,      // The raw email portion of the sender
+    viaHeader: null,        // "via" domain (e.g. sent via mailchimp.com)
+    outlookWarnings: [],    // Any info-bar / banner text Outlook surfaced
+  };
+
+  try {
+    // --- Reply-To: Outlook sometimes shows this in the details area ---
+    const allBtns = Array.from(document.body.querySelectorAll('button[aria-label]'));
+    const replyToBtn = allBtns.find(b => /^Reply-To:/i.test(b.getAttribute('aria-label') || ''));
+    if (replyToBtn) {
+      signals.replyTo = replyToBtn.getAttribute('aria-label').replace(/^Reply-To:\s*/i, '').trim();
+    }
+    // Also check aria-label on any element containing "Reply-To"
+    if (!signals.replyTo) {
+      const allEls = Array.from(document.body.querySelectorAll('[aria-label]'));
+      const rtEl = allEls.find(el => /reply.?to/i.test(el.getAttribute('aria-label') || ''));
+      if (rtEl) {
+        const label = rtEl.getAttribute('aria-label');
+        const emailMatch = label.match(/[\w.+-]+@[\w-]+\.[\w.]+/);
+        if (emailMatch) signals.replyTo = emailMatch[0];
+      }
+    }
+
+    // --- On-Behalf-Of: "Sent on behalf of <name>" rendering ---
+    const fromArea = pane.querySelector('[class*="from" i],[class*="From"],[data-testid*="from" i]');
+    const fromText = fromArea ? (fromArea.innerText || '') : (pane.innerText || '');
+    const oboMatch = fromText.match(/(?:on behalf of|sent on behalf of)\s+([^\n<(]+)/i);
+    if (oboMatch) signals.onBehalfOf = oboMatch[1].trim().slice(0, 200);
+
+    // --- Via header: "via mailchimp.com" or "via sendgrid.net" ---
+    const viaMatch = fromText.match(/\bvia\s+([\w.-]+\.[a-z]{2,})/i);
+    if (viaMatch) signals.viaHeader = viaMatch[1].toLowerCase();
+
+    // --- Parse display name vs actual email from sender button ---
+    const fromBtn = allBtns.find(b => /^From:/i.test(b.getAttribute('aria-label') || ''));
+    if (fromBtn) {
+      const raw = fromBtn.getAttribute('aria-label').replace(/^From:\s*/i, '').trim();
+      // Formats: "Display Name <email@domain.com>" or just "email@domain.com"
+      const angleMatch = raw.match(/^(.+?)\s*<([\w.+-]+@[\w.-]+)>/);
+      if (angleMatch) {
+        signals.displayName = angleMatch[1].trim();
+        signals.senderEmail = angleMatch[2].toLowerCase();
+      } else {
+        const bareEmail = raw.match(/[\w.+-]+@[\w.-]+/);
+        if (bareEmail) signals.senderEmail = bareEmail[0].toLowerCase();
+        signals.displayName = raw.replace(/[\w.+-]+@[\w.-]+/, '').trim() || null;
+      }
+
+      // Display name mismatch: name implies a brand but email is a different domain
+      if (signals.displayName && signals.senderEmail) {
+        const displayLower = signals.displayName.toLowerCase();
+        const emailDomain = signals.senderEmail.split('@')[1] || '';
+        // Check if display name contains a well-known brand that differs from sender domain
+        const KNOWN_BRANDS = [
+          'microsoft','apple','google','amazon','paypal','netflix','facebook','meta',
+          'instagram','linkedin','twitter','x.com','dropbox','docusign','zoom',
+          'wells fargo','chase','bank of america','citibank','irs','canada revenue',
+          'cra','service canada','fedex','ups','dhl','usps',
+        ];
+        const namedBrand = KNOWN_BRANDS.find(brand => displayLower.includes(brand));
+        if (namedBrand) {
+          // If brand name is in display but not in email domain, that's suspicious
+          const brandCore = namedBrand.replace(/\s+/g, '').replace(/\./g, '');
+          if (!emailDomain.includes(brandCore) && !emailDomain.includes(namedBrand.split(' ')[0])) {
+            signals.displayNameMismatch = true;
+          }
+        }
+      }
+    }
+
+    // --- Collect all Outlook info-bar / banner warnings ---
+    const warningCandidates = [
+      ...document.body.querySelectorAll('[role="alert"]'),
+      ...document.body.querySelectorAll('[role="status"]'),
+      ...document.body.querySelectorAll('[class*="InfoBar" i]'),
+      ...document.body.querySelectorAll('[class*="infoBar" i]'),
+      ...document.body.querySelectorAll('[class*="MessageBar" i]'),
+      ...document.body.querySelectorAll('[class*="banner" i]'),
+    ];
+    const seenWarnings = new Set();
+    for (const el of warningCandidates) {
+      const txt = (el.innerText || '').trim();
+      if (txt.length > 5 && txt.length < 400 && !seenWarnings.has(txt)) {
+        seenWarnings.add(txt);
+        signals.outlookWarnings.push(txt);
+      }
+    }
+  } catch(e) {}
+
+  return signals;
 }
 // --- Link Revelation ---
 function revealLinks() {
@@ -436,15 +581,21 @@ async function analyzeCurrentEmail() {
     }
   } catch(e) {}
 
+  const headerSignals = extractHeaderSignals(getReadingPane());
+
   const emailData = {
     subject: email.subject,
     sender: email.sender,
-    recipient: email.recipient,
-    senderHasEmail: email.senderHasEmail,
+    recipient: email.recipient,    senderHasEmail: email.senderHasEmail,
     body: email.body,
     links: email.links,
     attachments: email.attachments,
     isOutlookExternal: isOutlookExternal,
+    // Header-derived signals
+    replyTo: headerSignals.replyTo,    onBehalfOf: headerSignals.onBehalfOf,
+    viaHeader: headerSignals.viaHeader,
+    displayName: headerSignals.displayName,    senderEmail: headerSignals.senderEmail,
+    displayNameMismatch: headerSignals.displayNameMismatch,    outlookWarnings: headerSignals.outlookWarnings,
     clientTimestamp: new Date().toISOString(),
     clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
   };
@@ -584,7 +735,40 @@ function showResult(result, email) {
         <span class="oe-score-val">${escapeHtml(result.spam_score)}/100</span>
       </div>
     </div>
-    <div class="oe-section">
+    ${(email.replyTo || email.onBehalfOf || email.viaHeader || email.displayNameMismatch || (email.outlookWarnings && email.outlookWarnings.length > 0)) ? `
+    <div class="oe-section oe-header-signals">
+      <div class="oe-section-title">📬 Sender Header Signals</div>
+      ${email.displayNameMismatch ? `<div class="oe-header-row oe-header-warn">
+        <span class="oe-header-icon">⚠️</span>
+        <span class="oe-header-label">Display name mismatch</span>
+        <span class="oe-header-val">"${escapeHtml(email.displayName || '')}" — email doesn't match</span>
+      </div>` : (email.displayName && email.senderEmail ? `<div class="oe-header-row">
+        <span class="oe-header-icon">👤</span>
+        <span class="oe-header-label">Sender</span>
+        <span class="oe-header-val">${escapeHtml(email.displayName)} &lt;${escapeHtml(email.senderEmail)}&gt;</span>
+      </div>` : '')}
+      ${email.replyTo ? `<div class="oe-header-row ${email.replyTo !== email.senderEmail ? 'oe-header-warn' : ''}">
+        <span class="oe-header-icon">${email.replyTo !== email.senderEmail ? '⚠️' : '↩️'}</span>
+        <span class="oe-header-label">Reply-To</span>
+        <span class="oe-header-val">${escapeHtml(email.replyTo)}${email.replyTo !== email.senderEmail ? ' <em>(differs from sender)</em>' : ''}</span>
+      </div>` : ''}
+      ${email.onBehalfOf ? `<div class="oe-header-row oe-header-info">
+        <span class="oe-header-icon">📨</span>
+        <span class="oe-header-label">On behalf of</span>
+        <span class="oe-header-val">${escapeHtml(email.onBehalfOf)}</span>
+      </div>` : ''}
+      ${email.viaHeader ? `<div class="oe-header-row oe-header-info">
+        <span class="oe-header-icon">🔀</span>
+        <span class="oe-header-label">Sent via</span>
+        <span class="oe-header-val">${escapeHtml(email.viaHeader)}</span>
+      </div>` : ''}
+      ${(email.outlookWarnings && email.outlookWarnings.length > 0) ? email.outlookWarnings.map(w => `
+      <div class="oe-header-row oe-header-outlook-warn">
+        <span class="oe-header-icon">🔔</span>
+        <span class="oe-header-label">Outlook flagged</span>
+        <span class="oe-header-val">${escapeHtml(w)}</span>
+      </div>`).join('') : ''}
+    </div>` : ''}    <div class="oe-section">
       <div class="oe-section-title">Summary</div>
       <p>${escapeHtml(result.summary)}</p>
     </div>
@@ -597,10 +781,33 @@ function showResult(result, email) {
       <div class="oe-section-title">🔍 What We Found — tap each to learn more</div>
       ${findingsHTML}
     </div>` : ''}
-    ${email.links && email.links.length > 0 ? `
-    <div class="oe-section">
+    ${email.attachments && email.attachments.length > 0 ? `
+    <div class="oe-section oe-attachments-section">
+      <div class="oe-section-title">📎 Attachments (${email.attachmentCount})</div>
+      ${(email.attachments || []).map(name => {
+        const isHigh = (email.highRiskFiles || []).includes(name);
+        const isSusp = (email.suspiciousFiles || []).includes(name);
+        const isDouble = (email.doubleExtFiles || []).includes(name);
+        const icon = isHigh ? '🚨' : isSusp ? '⚠️' : '📄';
+        const cls = isHigh ? 'oe-attach-high' : isSusp ? 'oe-attach-suspicious' : 'oe-attach-safe';
+        const badge = isDouble
+          ? '<span class="oe-attach-badge oe-badge-double">DOUBLE EXT</span>'
+          : isHigh
+            ? '<span class="oe-attach-badge oe-badge-high">HIGH RISK</span>'
+            : isSusp
+              ? '<span class="oe-attach-badge oe-badge-susp">SUSPICIOUS</span>'
+              : '';
+        return `<div class="oe-attach-row ${cls}">${icon} <span class="oe-attach-name">${escapeHtml(name)}</span>${badge}</div>`;
+      }).join('')}
+    </div>` : ''}
+    ${email.links && email.links.length > 0 ? `    <div class="oe-section">
       <div class="oe-section-title">🔗 Links in this email (${email.links.length})</div>
-      ${email.links.map(l => buildLinkRowHtml(l)).join('')}
+      ${email.links.map(l => {
+          const hit = (result.lookalikeDomains || []).find(h => {
+            try { return new URL('https://' + h.domain).hostname.toLowerCase() === (l.href || '').toLowerCase().replace(/^www\\./, '') } catch { return false }
+          });
+          return buildLinkRowHtml(l, hit || null);
+        }).join('')}
     </div>` : ''}
     ${result.lesson ? `
     <div class="oe-lesson">
@@ -613,7 +820,15 @@ function showResult(result, email) {
       <p>${escapeHtml(result.suggested_action)}</p>
     </div>
 
-    <div class="oe-feedback-section" id="oe-feedback-section">
+
+    ${(result.itSecurityEmail && (result.verdict === 'PHISHING' || result.verdict === 'SUSPICIOUS')) ? `
+    <div class="oe-report-it-section">
+      <div class="oe-report-it-title">🚨 Report this email</div>
+      <p class="oe-report-it-hint">Forward a pre-filled report to your IT security team.</p>
+      <button type="button" class="oe-report-it-btn" id="oe-report-it-btn">
+        📨 Report to IT Security
+      </button>
+    </div>` : ''}    <div class="oe-feedback-section" id="oe-feedback-section">
       <div class="oe-feedback-title">Was this analysis accurate?</div>
       <div class="oe-feedback-buttons">
         <button class="oe-feedback-btn oe-fb-false-positive" id="oe-fb-fp">
@@ -632,7 +847,50 @@ function showResult(result, email) {
   const mtBtn = document.getElementById('oe-fb-mt');
 
   fpBtn.addEventListener('click', () => showFeedbackForm('false_positive', result, email));
-  mtBtn.addEventListener('click', () => showFeedbackForm('missed_threat', result, email));
+  mtBtn.addEventListener('click', () => showFeedbackForm('missed_threat', result, email));﻿
+  // Report to IT button
+  const reportItBtn = document.getElementById('oe-report-it-btn');
+  if (reportItBtn && result.itSecurityEmail) {
+    reportItBtn.addEventListener('click', () => {
+      const to      = encodeURIComponent(result.itSecurityEmail);
+      const subject = encodeURIComponent('[Security Report] Suspected ' + result.verdict + ': ' + (email.subject || '(no subject)').slice(0, 80));
+      const bodyLines = [
+        'I am forwarding a suspicious email for your review.',
+        '',
+        '--- ANALYSIS SUMMARY ---',
+        'Verdict: ' + result.verdict,
+        'Phishing Risk: ' + result.phishing_score + '/100',
+        'Spam Score: '    + result.spam_score    + '/100',
+        '',
+        '--- EMAIL DETAILS ---',
+        'Subject:   ' + (email.subject   || '(none)'),
+        'From:      ' + (email.sender    || '(unknown)'),
+        'Recipient: ' + (email.recipient || '(unknown)'),
+        '',
+        '--- AI SUMMARY ---',
+        result.summary || '',
+        '',
+        '--- SUGGESTED ACTION ---',
+        result.suggested_action || '',
+        '',
+        '--- FINDINGS ---',
+        ...(result.findings || []).map((f, i) => (i + 1) + '. ' + f.flag + ': ' + f.explanation),
+        '',
+        '--- LINKS IN EMAIL ---',
+        ...(email.links || []).map(l => '* ' + l.display + ' -> ' + (l.fullUrl || l.href || '')),
+        '',
+        'Reported via Outlook Email Evaluator.',
+      ];
+      const body = encodeURIComponent(bodyLines.join('\n'));
+      window.open('mailto:' + to + '?subject=' + subject + '&body=' + body, '_blank');
+      reportItBtn.textContent = '\u2705 Report opened in mail client';
+      reportItBtn.disabled = true;
+      setTimeout(() => {
+        reportItBtn.textContent = '\uD83D\uDCE8 Report to IT Security';
+        reportItBtn.disabled = false;
+      }, 4000);
+    });
+  }
 
   const btn = document.getElementById('oe-analyze-btn');
   btn.style.display = 'block';

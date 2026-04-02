@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { hashToken, isExtensionTokenAllowed } from "../_shared/extension-auth.ts"
 
@@ -36,11 +36,30 @@ function checkForGiftCardFraud(subject: string, body: string): boolean {
   return GIFT_CARD_KEYWORDS.some(kw => combined.includes(kw))
 }
 
-function classifyAttachments(attachments: string[]): { highRisk: string[], suspicious: string[], hasHighRisk: boolean, hasSuspicious: boolean } {
+const SAFE_DECOY_EXTENSIONS = ['.pdf','.doc','.docx','.xls','.xlsx','.ppt','.pptx','.txt','.png','.jpg','.jpeg','.gif','.csv']
+ classifyAttachments(attachments: string[]): {
+  highRisk: string[], suspicious: string[], doubleExt: string[],
+  hasHighRisk: boolean, hasSuspicious: boolean, count: number, highCount: boolean
+} {
   const names = (attachments || []).map(a => a.toLowerCase())
-  const highRisk = names.filter(n => HIGH_RISK_EXTENSIONS.some(e => n.endsWith(e)))
+
+  // Double-extension: e.g. invoice.pdf.exe — disguises malware as a safe file type
+  const doubleExt = names.filter(n => {
+    const parts = n.split('.')
+    if (parts.length < 3) return false
+    const finalExt = '.' + parts[parts.length - 1]
+    const penultExt = '.' + parts[parts.length - 2]
+    return (HIGH_RISK_EXTENSIONS.includes(finalExt) || SUSPICIOUS_EXTENSIONS.includes(finalExt))
+      && SAFE_DECOY_EXTENSIONS.includes(penultExt)
+  })
+
+  const highRisk = [...new Set([
+    ...names.filter(n => HIGH_RISK_EXTENSIONS.some(e => n.endsWith(e))),
+    ...doubleExt,
+  ])]
   const suspicious = names.filter(n => !highRisk.includes(n) && SUSPICIOUS_EXTENSIONS.some(e => n.endsWith(e)))
-  return { highRisk, suspicious, hasHighRisk: highRisk.length > 0, hasSuspicious: suspicious.length > 0 }
+  const count = names.length
+  return { highRisk, suspicious, doubleExt, hasHighRisk: highRisk.length > 0, hasSuspicious: suspicious.length > 0, count, highCount: count >= 5 }
 }
 
 const RATE_LIMIT_WINDOW_MS = 5000
@@ -84,6 +103,16 @@ interface EmailData {
   hasSuspiciousAttachment: boolean
   highRiskFiles: string[]
   suspiciousFiles: string[]
+  doubleExtFiles?: string[]
+  attachmentCount?: number
+  hasHighAttachmentCount?: boolean
+  // Header-derived signals (extracted from Outlook DOM)
+  replyTo?: string | null
+  onBehalfOf?: string | null
+  viaHeader?: string | null
+  displayName?: string | null  senderEmail?: string | null
+  displayNameMismatch?: boolean
+  outlookWarnings?: string[]
   isOutlookExternal: boolean
   clientTimestamp: string
   clientTimezone?: string
@@ -159,6 +188,180 @@ function classifySenderDomain(sender: string, tenantDomain: string): 'internal' 
   return 'external'
 }
 
+
+// ── Lookalike Domain Detection ─────────────────────────────────────────────
+// Detects domains impersonating well-known brands via character substitution,
+// Levenshtein distance, subdomain abuse, and homoglyph swaps.
+
+interface BrandEntry {
+  name: string
+  domains: string[]      // All legitimate domains for this brand
+  keywords: string[]     // Core brand keywords to match against display text
+}
+
+const BRAND_LIST: BrandEntry[] = [
+  // Financial
+  { name: "PayPal",          domains: ["paypal.com"],                              keywords: ["paypal"] },
+  { name: "Chase",           domains: ["chase.com","jpmorgan.com"],                keywords: ["chase","jpmorgan"] },
+  { name: "Wells Fargo",     domains: ["wellsfargo.com"],                          keywords: ["wellsfargo","wells fargo"] },
+  { name: "Bank of America", domains: ["bankofamerica.com"],                       keywords: ["bankofamerica","bank of america"] },
+  { name: "Citibank",        domains: ["citi.com","citibank.com"],                 keywords: ["citi","citibank"] },
+  { name: "American Express",domains: ["americanexpress.com","amex.com"],          keywords: ["amex","americanexpress","american express"] },
+  { name: "Visa",            domains: ["visa.com"],                                keywords: ["visa"] },
+  { name: "Mastercard",      domains: ["mastercard.com"],                          keywords: ["mastercard"] },
+  { name: "Capital One",     domains: ["capitalone.com"],                          keywords: ["capitalone","capital one"] },
+  // Tech / Cloud
+  { name: "Microsoft",       domains: ["microsoft.com","live.com","outlook.com","office.com","office365.com","microsoftonline.com","sharepoint.com","onedrive.com"], keywords: ["microsoft","office365","onedrive","sharepoint"] },
+  { name: "Google",          domains: ["google.com","gmail.com","google.ca","google.co.uk","googleapis.com","goog.le"], keywords: ["google","gmail","google drive","google workspace"] },
+  { name: "Apple",           domains: ["apple.com","icloud.com"],                  keywords: ["apple","icloud","itunes","app store"] },
+  { name: "Amazon",          domains: ["amazon.com","amazon.ca","amazon.co.uk","aws.amazon.com","awsapps.com"], keywords: ["amazon","aws","amazon web services"] },
+  { name: "Dropbox",         domains: ["dropbox.com"],                             keywords: ["dropbox"] },
+  { name: "Adobe",           domains: ["adobe.com"],                               keywords: ["adobe","acrobat","photoshop","creative cloud"] },
+  { name: "Zoom",            domains: ["zoom.us","zoom.com"],                      keywords: ["zoom"] },
+  { name: "Slack",           domains: ["slack.com"],                               keywords: ["slack"] },
+  { name: "DocuSign",        domains: ["docusign.com","docusign.net"],             keywords: ["docusign"] },
+  { name: "Salesforce",      domains: ["salesforce.com","force.com"],              keywords: ["salesforce"] },
+  { name: "GitHub",          domains: ["github.com","githubusercontent.com"],       keywords: ["github"] },
+  { name: "LinkedIn",        domains: ["linkedin.com"],                            keywords: ["linkedin"] },
+  { name: "Facebook",        domains: ["facebook.com","fb.com","meta.com"],        keywords: ["facebook","meta"] },
+  { name: "Twitter / X",     domains: ["twitter.com","x.com","t.co"],             keywords: ["twitter"] },
+  { name: "Instagram",       domains: ["instagram.com"],                           keywords: ["instagram"] },
+  { name: "Netflix",         domains: ["netflix.com"],                             keywords: ["netflix"] },
+  { name: "Spotify",         domains: ["spotify.com"],                             keywords: ["spotify"] },
+  // Shipping / Retail
+  { name: "FedEx",           domains: ["fedex.com"],                               keywords: ["fedex"] },
+  { name: "UPS",             domains: ["ups.com"],                                 keywords: ["ups"] },
+  { name: "DHL",             domains: ["dhl.com","dhl.de"],                        keywords: ["dhl"] },
+  { name: "USPS",            domains: ["usps.com"],                                keywords: ["usps","postal service"] },
+  { name: "Canada Post",     domains: ["canadapost.ca","canadapost-postescanada.ca"], keywords: ["canada post","canadapost"] },
+  // Government / Tax
+  { name: "IRS",             domains: ["irs.gov"],                                 keywords: ["irs"] },
+  { name: "Canada Revenue",  domains: ["canada.ca","cra-arc.gc.ca"],               keywords: ["cra","canada revenue","service canada"] },
+  // Security / Identity
+  { name: "Okta",            domains: ["okta.com"],                                keywords: ["okta"] },
+  { name: "Duo Security",    domains: ["duo.com","duosecurity.com"],               keywords: ["duo"] },
+  { name: "1Password",       domains: ["1password.com","1password.ca"],            keywords: ["1password"] },
+  { name: "LastPass",        domains: ["lastpass.com"],                            keywords: ["lastpass"] },
+]
+
+// Normalise a domain: strip www. and trailing slash, lowercase
+function normaliseDomain(d: string): string {
+  return d.replace(/^www\./i, '').toLowerCase().split('/')[0].split(':')[0]
+}
+
+// Levenshtein distance (iterative, O(n*m))
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+  )
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i-1] === b[j-1]
+        ? dp[i-1][j-1]
+        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
+    }
+  }
+  return dp[m][n]
+}
+
+// Homoglyph / number-swap normalisation: map visually similar chars to canonical form
+const HOMOGLYPH_MAP: Record<string, string> = {
+  '0': 'o', '1': 'l', '3': 'e', '4': 'a', '5': 's', '6': 'b', '7': 't', '8': 'b',
+  'vv': 'w', 'rn': 'm', 'cl': 'd', 'ii': 'u',
+}
+function normaliseHomoglyphs(s: string): string {
+  let r = s.toLowerCase()
+  // Multi-char substitutions first
+  for (const [from, to] of Object.entries(HOMOGLYPH_MAP)) {
+    if (from.length > 1) r = r.split(from).join(to)
+  }
+  // Single-char substitutions
+  r = r.split('').map(c => (HOMOGLYPH_MAP[c] && HOMOGLYPH_MAP[c].length === 1 ? HOMOGLYPH_MAP[c] : c)).join('')
+  return r
+}
+
+interface LookalikeHit {
+  domain: string       // The suspicious domain
+  brand: string        // Brand it's impersonating
+  technique: string    // How it was detected
+  legitimateDomain: string  // The real domain
+}
+
+function detectLookalikeDomains(links: EmailLink[]): LookalikeHit[] {
+  const hits: LookalikeHit[] = []
+  const seen = new Set<string>()
+
+  for (const link of links) {
+    if (!link.href) continue
+    const raw = normaliseDomain(link.href)
+    // Strip port
+    const domain = raw.split(':')[0]
+    if (!domain || domain.length < 4) continue
+    // Extract registrable domain (last two parts) and full hostname
+    const parts = domain.split('.')
+    if (parts.length < 2) continue
+    const registrable = parts.slice(-2).join('.')   // e.g. "paypa1.com"
+    const tld = parts[parts.length - 1]
+
+    for (const brand of BRAND_LIST) {
+      for (const legit of brand.domains) {
+        const legitNorm = normaliseDomain(legit)
+        const legitParts = legitNorm.split('.')
+        const legitRegistrable = legitParts.slice(-2).join('.')
+
+        // Skip if it IS the legitimate domain (exact or subdomain)
+        if (domain === legitNorm || domain.endsWith('.' + legitNorm)) continue
+        // Skip if registrable domains match (already caught by exact check)
+        if (registrable === legitRegistrable) continue
+
+        const key = `${domain}::${legit}`
+        if (seen.has(key)) continue
+
+        // ── Technique 1: Subdomain abuse ─────────────────────────────────
+        // e.g. microsoft.com.evil.ru — legitimate brand appears as a subdomain
+        if (domain.includes('.' + legitNorm + '.') || domain.startsWith(legitNorm + '.')) {
+          seen.add(key)
+          hits.push({ domain, brand: brand.name, technique: 'subdomain-abuse', legitimateDomain: legit })
+          break
+        }
+
+        // ── Technique 2: Homoglyph-normalised exact match ─────────────────
+        // e.g. paypa1.com -> paypal.com after normalisation
+        const normDomain = normaliseHomoglyphs(registrable)
+        const normLegit  = normaliseHomoglyphs(legitRegistrable)
+        if (normDomain === normLegit && registrable !== legitRegistrable) {
+          seen.add(key)
+          hits.push({ domain, brand: brand.name, technique: 'character-substitution', legitimateDomain: legit })
+          break
+        }
+
+        // ── Technique 3: Levenshtein distance ────────────────────────────
+        // Only compare if TLD matches (reduces false positives) and
+        // brand keyword appears somewhere in the domain (avoids flagging
+        // completely unrelated short domains)
+        if (tld === legitParts[legitParts.length - 1]) {
+          const brandCore = legitParts[0]  // e.g. "paypal" from "paypal.com"
+          const dist = levenshtein(registrable, legitRegistrable)
+          const maxLen = Math.max(registrable.length, legitRegistrable.length)
+          // Distance 1-2 edits AND domain contains some chars from brand name
+          // AND normalised forms differ (catches swaps not caught above)
+          if (dist >= 1 && dist <= 2 && normDomain !== normLegit) {
+            // Extra guard: at least 60% char overlap to avoid false positives
+            const overlap = [...registrable].filter(c => legitRegistrable.includes(c)).length
+            if (overlap / brandCore.length >= 0.6) {
+              seen.add(key)
+              hits.push({ domain, brand: brand.name, technique: 'typosquatting', legitimateDomain: legit })
+              break
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return hits
+}
 // ── Prompt builder (all analysis logic lives here, not in the extension) ─────
 function buildPrompt(e: EmailData, customPrompt: string, tenantDomain: string): string {
   const now = new Date()
@@ -178,17 +381,48 @@ function buildPrompt(e: EmailData, customPrompt: string, tenantDomain: string): 
 
   const customLine = customPrompt ? `- Additional instructions: ${customPrompt}` : ""
 
-  const attachmentList = e.attachments?.length > 0 ? e.attachments.join(", ") : "(none)"
+  const attachmentList = e.attachments?.length > 0
+    ? e.attachments.map(n => {
+        const isDouble = (e.doubleExtFiles || []).includes(n)
+        const isHigh = (e.highRiskFiles || []).includes(n)
+        const isSusp = (e.suspiciousFiles || []).includes(n)
+        const tag = isDouble ? ' [DOUBLE-EXTENSION — disguised as safe file]'
+          : isHigh ? ' [HIGH RISK]'
+          : isSusp ? ' [SUSPICIOUS]'
+          : ''
+        return n + tag
+      }).join(", ")
+    : "(none)"
 
+  const doubleExtList = (e.doubleExtFiles || []).join(", ")
   let attachmentWarning = ""
   if (e.hasHighRiskAttachment) {
-    attachmentWarning = `CRITICAL: HIGH RISK attachment(s) detected: ${e.highRiskFiles.join(", ")}. You MUST set verdict to PHISHING, phishing_score to at least 90, and suggested_action MUST include: Do NOT open this attachment. Report this email to your IT security team immediately.`
+    const reason = doubleExtList
+      ? `Includes double-extension file(s) disguised as safe types: ${doubleExtList}. `
+      : ""
+    attachmentWarning = `CRITICAL: HIGH RISK attachment(s) detected: ${e.highRiskFiles.join(", ")}. ${reason}You MUST set verdict to PHISHING, phishing_score to at least 90, and suggested_action MUST include: Do NOT open this attachment. Report this email to your IT security team immediately.`
   } else if (e.hasSuspiciousAttachment) {
     attachmentWarning = `WARNING: SUSPICIOUS attachment(s) detected: ${e.suspiciousFiles.join(", ")}. Set phishing_score to at least 60 and suggested_action MUST include: Do not open this attachment unless you are certain of its origin.`
   }
+  if (e.hasHighAttachmentCount) {
+    attachmentWarning += ` NOTE: This email has an unusually high number of attachments (${e.attachmentCount}), which is atypical for legitimate emails and may indicate a spray-and-pray malware delivery attempt.`
+  }
+
+  const lookalikesDetected = detectLookalikeDomains(e.links || [])
+  const lookalikeByDomain = new Map<string, LookalikeHit>(
+    lookalikesDetected.map(h => [normaliseDomain(h.domain), h])
+  )
 
   const linksBlock = e.links?.length > 0
-    ? e.links.map(l => ` - Display: "${l.display}" -> Real domain: ${l.href}${l.mismatch ? " WARNING: DOMAIN MISMATCH" : ""}`).join("\n")
+    ? e.links.map(l => {
+        const norm = normaliseDomain(l.href || '')
+        const hit = lookalikeByDomain.get(norm)
+        const mismatchTag = l.mismatch ? ' WARNING: DOMAIN MISMATCH' : ''
+        const lookalikeTag = hit
+          ? ` LOOKALIKE ALERT: impersonates ${hit.brand} (${hit.legitimateDomain}) via ${hit.technique}`
+          : ''
+        return ` - Display: "${l.display}" -> Real domain: ${l.href}${mismatchTag}${lookalikeTag}`
+      }).join("\n")
     : " (No links found)"
 
   // ── Server-side external classification (more reliable than client-side banner) ──
@@ -233,12 +467,56 @@ CRITICAL RULES for this email:
 5. Sign-in alerts, new device notifications, and account activity summaries from ${saasMatch.name} are routine and expected — lean toward SAFE if content matches normal ${saasMatch.name} notification patterns.`
     : ""
 
-  return `You are a cybersecurity educator helping everyday office workers learn to identify email threats. Analyze the email below and respond ONLY with a JSON object - no markdown, no text outside the JSON.
+
+  // ── Header signal block for the prompt ──────────────────────────────────────
+  const headerLines: string[] = []
+
+  if (e.displayName && e.senderEmail) {
+    headerLines.push(`Sender display name: "${e.displayName}" | Actual email: ${e.senderEmail}`)
+  }
+  if (e.displayNameMismatch) {
+    headerLines.push(`DISPLAY NAME MISMATCH: The display name implies a well-known brand but the sending email address belongs to a different domain. This is a classic phishing technique. MUST flag as a finding.`)
+  }
+  if (e.replyTo) {
+    const rtDiffers = e.senderEmail && e.replyTo.toLowerCase() !== e.senderEmail.toLowerCase()
+    const rtDomain = e.replyTo.includes('@') ? e.replyTo.split('@')[1] : ''
+    const senderDomainForRT = e.senderEmail?.split('@')[1] ?? ''
+    const rtDomainMismatch = rtDomain && senderDomainForRT && rtDomain !== senderDomainForRT
+    if (rtDiffers && rtDomainMismatch) {
+      headerLines.push(`Reply-To MISMATCH: Replies will go to "${e.replyTo}" which is on a DIFFERENT DOMAIN than the sender (${senderDomainForRT}). This is a common phishing technique to intercept replies. MUST flag as a finding if verdict is SUSPICIOUS or PHISHING.`)
+    } else if (rtDiffers) {
+      headerLines.push(`Reply-To differs from sender: "${e.replyTo}" — replies will go to a different address than the one that sent this.`)
+    } else {
+      headerLines.push(`Reply-To: ${e.replyTo} (matches sender — normal)`)
+    }
+  }
+  if (e.onBehalfOf) {
+    headerLines.push(`Sent on behalf of: "${e.onBehalfOf}" — verify this delegation is expected and legitimate.`)
+  }
+  if (e.viaHeader) {
+    const KNOWN_ESP = ['mailchimp','sendgrid','constantcontact','hubspot','klaviyo','salesforce','marketo','campaignmonitor','exacttarget','aweber','mailgun','postmark','sparkpost']
+    const isKnownESP = KNOWN_ESP.some(esp => e.viaHeader!.includes(esp))
+    headerLines.push(`Sent via: ${e.viaHeader}${isKnownESP ? ' (known email service provider — normal for marketing emails)' : ' (third-party relay — verify this is expected)'}`)
+  }
+  if (e.outlookWarnings && e.outlookWarnings.length > 0) {
+    headerLines.push(`Outlook surfaced these warnings in the UI:`)
+    e.outlookWarnings.forEach(w => headerLines.push(`  - "${w}"`))
+  }
+
+  const headerSignalsBlock = headerLines.length > 0
+    ? `\nHEADER SIGNALS (extracted from Outlook DOM — treat as high-confidence data):\n${headerLines.join('\n')}\n`
+    : ''
+  // ── Lookalike domain warning block ──────────────────────────────────────
+  let lookalikeWarning = ''
+  if (lookalikesDetected.length > 0) {
+    const hitLines = lookalikesDetected.map(
+      h => `  -  is impersonating  () — detected via `
+    ).join('\n')    lookalikeWarning = `LOOKALIKE DOMAIN ALERT: The following link domains appear to be impersonating well-known brands. You MUST flag each one as a finding. Set verdict to at least SUSPICIOUS; if combined with credential requests or urgency, set to PHISHING with phishing_score >= 85.\n\n`  }  return `You are a cybersecurity educator helping everyday office workers learn to identify email threats. Analyze the email below and respond ONLY with a JSON object - no markdown, no text outside the JSON.
 
 IMPORTANT CONTEXT:
 - Current date/time: ${utcString} (UTC) / ${localString} (${tz}). Do not flag dates as suspicious if they fall within the current day across timezones.
 - ${orgContext}
-- Sender: ${e.sender}
+${headerSignalsBlock}- Sender: ${e.sender}
 - Is this an external sender? ${externalNote}
 - If sender is "(No sender found)" that is a technical extraction issue, NOT a red flag - do not flag it as suspicious
 - Do NOT assume external based on display name alone
@@ -261,7 +539,13 @@ KEY RULES:
 5. If email involves adding users, granting access, payments, credential changes, or urgent action - suggested_action MUST include: "Verify this request through official channels other than email before taking action."
 6. If email contains a login link, verification code, OTP, security alert, or account notification - suggested_action MUST include: "If you did not request this, do not click any links and report this to your IT security team immediately."
 7. If email contains a verification or security code - suggested_action MUST include: "Never share this code with anyone - legitimate services will never ask you for it."
-8. GIFT CARD RULE: Any request to purchase or send gift cards of any kind (iTunes, Google Play, Amazon, Visa, Steam, etc.) MUST be flagged as PHISHING with phishing_score of 99. No legitimate business ever requests gift card payments. This is always fraud.
+8. HEADER RULES (only apply when header signals are provided above):
+   a. If Reply-To domain differs from sender domain: flag as suspicious finding — this is used to intercept replies.
+   b. If display name mismatch is confirmed (flagged above): MUST set verdict to at least SUSPICIOUS and MUST include a finding.
+   c. If "Sent on behalf of" is present: note it, but only flag if the delegating address seems inconsistent with the email content.
+   d. If "Sent via" is an unknown relay: note it; if via a known ESP it is normal for marketing.. GIFT CARD RULE: Any request to purchase or send gift cards of any kind
+9. LOOKALIKE DOMAIN RULE: Any domain flagged as LOOKALIKE ALERT in the links section MUST be included as a finding. Explain what character substitution or typosquatting means in plain language. Set verdict to at least SUSPICIOUS.
+10. GIFT CARD RULE: Any request to purchase or send gift cards of any kind (iTunes, Google Play, Amazon, Visa, Steam, etc.) MUST be flagged as PHISHING with phishing_score of 99. No legitimate business ever requests gift card payments. This is always fraud.
 
 VERDICT DEFINITIONS - apply these strictly:
 - SAFE: Legitimate email with no red flags. Internal comms, expected system notifications, known business contacts.
@@ -283,6 +567,7 @@ Body:
 ${e.body}
 Attachments found: ${attachmentList}
 ${attachmentWarning}
+${lookalikeWarning}
 
 EMBEDDED LINKS (already decoded from safelinks wrappers):
 ${linksBlock}
@@ -290,8 +575,9 @@ ${linksBlock}
 When analyzing links:
 1. Do NOT flag safelinks.protection.outlook.com or urldefense.com - already decoded above
 2. Flag display text showing one domain but real destination is completely different
-3. Flag suspicious TLDs or domains impersonating known brands
+3. Any link marked LOOKALIKE ALERT has been algorithmically verified as impersonating a known brand — treat it as confirmed and MUST flag it as a finding
 4. Flag URL shorteners (bit.ly, tinyurl, t.co)
+5. For lookalike domains: explain the specific deception technique (character substitution, typosquatting, subdomain abuse) in plain English so users can spot it themselves
 
 Respond with this EXACT JSON structure:
 {
@@ -405,6 +691,9 @@ serve(async (req) => {
     emailData.hasSuspiciousAttachment = attach.hasSuspicious
     emailData.highRiskFiles = attach.highRisk
     emailData.suspiciousFiles = attach.suspicious
+    emailData.doubleExtFiles = attach.doubleExt
+    emailData.attachmentCount = attach.count
+    emailData.hasHighAttachmentCount = attach.highCount
   } catch {
     return json({ error: "Invalid request body" }, 400, corsHeaders)
   }
@@ -476,7 +765,14 @@ serve(async (req) => {
       recipient: clipLogField(emailData.recipient, MAX_LOG_ADDRESS_LEN),
     }).then(() => {})
 
-    return json({ result: parsed }, 200, corsHeaders)
+    // Attach lookalike hits so the client can badge individual link rows    const resultWithLookalikes = {      ...parsed,      lookalikeDomains: lookalikesDetected.map(h => ({
+        domain: h.domain,
+        brand: h.brand,
+        technique: h.technique,
+        legitimateDomain: h.legitimateDomain,
+      })),
+      itSecurityEmail: itEmail,
+    }    return json({ result: resultWithLookalikes }, 200, corsHeaders)
 
   } catch (err) {
     return json({ error: `Upstream fetch failed: ${(err as Error).message}` }, 502, corsHeaders)

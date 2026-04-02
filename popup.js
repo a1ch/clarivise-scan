@@ -1,4 +1,4 @@
-// ── Tabs ───────────────────────────────────────────────────────────────────────
+﻿// ── Tabs ───────────────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
@@ -10,11 +10,12 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 // ── Load saved values ──────────────────────────────────────────────────────────
 const DEFAULT_PROXY_URL = 'https://pikplhvawbhndijpkdbq.supabase.co/functions/v1/analyze-email'
-chrome.storage.local.get(['proxyUrl', 'extensionToken', 'tenantDomain', 'customPrompt'], (data) => {
+chrome.storage.local.get(['proxyUrl', 'extensionToken', 'tenantDomain', 'customPrompt', 'itSecurityEmail'], (data) => {
   document.getElementById('proxyUrl').value       = data.proxyUrl || DEFAULT_PROXY_URL
-  if (data.extensionToken) document.getElementById('extensionToken').value = data.extensionToken
-  if (data.tenantDomain)   document.getElementById('tenantDomain').value   = data.tenantDomain
-  if (data.customPrompt)   document.getElementById('customPrompt').value   = data.customPrompt
+  if (data.extensionToken)   document.getElementById('extensionToken').value   = data.extensionToken
+  if (data.tenantDomain)     document.getElementById('tenantDomain').value     = data.tenantDomain
+  if (data.customPrompt)     document.getElementById('customPrompt').value     = data.customPrompt
+  if (data.itSecurityEmail)  document.getElementById('itSecurityEmail').value  = data.itSecurityEmail
 })
 
 // ── Show/hide token ────────────────────────────────────────────────────────────
@@ -77,11 +78,16 @@ document.getElementById('saveConnection').addEventListener('click', async () => 
 
 // ── Save Settings ──────────────────────────────────────────────────────────────
 document.getElementById('saveSettings').addEventListener('click', () => {
-  const tenantDomain = document.getElementById('tenantDomain').value.trim()
-  const customPrompt = document.getElementById('customPrompt').value.trim()
-  const status       = document.getElementById('settingsStatus')
+  const tenantDomain    = document.getElementById('tenantDomain').value.trim()
+  const customPrompt    = document.getElementById('customPrompt').value.trim()
+  const itSecurityEmail = document.getElementById('itSecurityEmail').value.trim()
+  const status          = document.getElementById('settingsStatus')
 
-  chrome.storage.local.set({ tenantDomain, customPrompt }, () => {
+  if (itSecurityEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(itSecurityEmail)) {
+    return showStatus(status, '❌ IT Security Email must be a valid email address.', false)
+  }
+
+  chrome.storage.local.set({ tenantDomain, customPrompt, itSecurityEmail }, () => {
     showStatus(status, '✅ Settings saved!', true)
   })
 })

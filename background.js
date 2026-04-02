@@ -1,4 +1,4 @@
-importScripts('proxy-utils.js')
+﻿importScripts('proxy-utils.js')
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Outlook Email Evaluator installed.')
@@ -12,7 +12,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'ANALYZE_EMAIL') {
     if (!sender.tab?.id) return false
-    chrome.storage.local.get(['proxyUrl', 'extensionToken', 'customPrompt', 'tenantDomain'], async (result) => {
+    chrome.storage.local.get(['proxyUrl', 'extensionToken', 'customPrompt', 'tenantDomain', 'itSecurityEmail'], async (result) => {
       const proxyUrl = (result.proxyUrl || '').trim()
       const extToken = (result.extensionToken || '').trim()
       const customPrompt = result.customPrompt || ''
@@ -68,7 +68,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         const data = await response.json()
-        chrome.tabs.sendMessage(sender.tab.id, { type: 'ANALYSIS_DONE', result: data.result })
+        // Server-side itSecurityEmail takes priority; fall back to local setting
+        const itEmail = data.result?.itSecurityEmail || (result.itSecurityEmail || '').trim() || null
+        if (data.result && itEmail) data.result.itSecurityEmail = itEmail        chrome.tabs.sendMessage(sender.tab.id, { type: 'ANALYSIS_DONE', result: data.result })
 
       } catch (err) {
         chrome.tabs.sendMessage(sender.tab.id, {
