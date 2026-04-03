@@ -1,196 +1,899 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Outlook Email Evaluator — Admin</title>
-  <style>
-    :root { --bg:#0f1419; --card:#1a2332; --text:#e7ecf3; --muted:#8b9cb3; --accent:#3b82f6; --danger:#ef4444; --ok:#22c55e; }
-    * { box-sizing: border-box; }
-    body { font-family: ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 24px; line-height: 1.5; }
-    .banner-warn { background: #422006; border: 1px solid #ca8a04; color: #fef08a; padding: 12px 14px; border-radius: 8px; margin-bottom: 20px; max-width: 720px; font-size: 13px; }
-    .banner-warn code { background: #1c1917; padding: 2px 6px; border-radius: 4px; }
-    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 8px; }
-    p.sub { color: var(--muted); font-size: 0.875rem; margin: 0 0 24px; }
-    .card { background: var(--card); border-radius: 10px; padding: 20px; max-width: 720px; margin-bottom: 20px; border: 1px solid #2a3544; }
-    label { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 6px; }
-    input[type="password"], input[type="text"] { width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid #3d4f66; background: #0f1419; color: var(--text); font-size: 14px; }
-    button { background: var(--accent); color: white; border: none; padding: 10px 18px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 14px; }
-    button:hover { filter: brightness(1.08); }
-    button.danger { background: var(--danger); }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-top: 12px; }
-    .once { background: #14532d; border: 1px solid var(--ok); padding: 12px; border-radius: 8px; font-family: ui-monospace, monospace; word-break: break-all; font-size: 13px; margin-top: 12px; display: none; }
-    .once.show { display: block; }
-    .once-actions { margin-top: 10px; }
-    .once-actions button { background: #065f46; }
-    .err { color: #fca5a5; font-size: 14px; margin-top: 8px; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #2a3544; }
-    th { color: var(--muted); font-weight: 600; }
-    .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; }
-    .badge.on { background: #14532d; color: #86efac; }
-    .badge.off { background: #450a0a; color: #fca5a5; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Evaluator — Admin Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161d;
+    --surface2: #1a1e28;
+    --border: #252933;
+    --border2: #2e3444;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --accent: #4f7cff;
+    --accent-dim: rgba(79,124,255,0.12);
+    --phish: #ff4f6b;
+    --phish-dim: rgba(255,79,107,0.12);
+    --warn: #ffb347;
+    --warn-dim: rgba(255,179,71,0.1);
+    --spam: #9b8aff;
+    --spam-dim: rgba(155,138,255,0.1);
+    --safe: #3ecf8e;
+    --safe-dim: rgba(62,207,142,0.1);
+    --mono: 'DM Mono', monospace;
+    --head: 'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ── LOGIN ── */
+  #login-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(79,124,255,0.08) 0%, transparent 70%);
+  }
+  .login-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 48px 40px;
+    width: 360px;
+    text-align: center;
+  }
+  .login-logo {
+    font-family: var(--head);
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .login-logo span { color: var(--accent); }
+  .login-sub {
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 32px;
+  }
+  .login-card input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .login-card input:focus { border-color: var(--accent); }
+  .btn-primary {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--head);
+    font-weight: 600;
+    font-size: 14px;
+    padding: 11px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-primary:active { transform: scale(0.98); }
+  #login-error { color: var(--phish); font-size: 12px; margin-top: 10px; min-height: 18px; }
+
+  /* ── LAYOUT ── */
+  #app { display: none; }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    height: 56px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-brand {
+    font-family: var(--head);
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: -0.3px;
+  }
+  .topbar-brand span { color: var(--accent); }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .org-pill {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .btn-sm {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .btn-sm:hover { color: var(--text); border-color: var(--border); }
+
+  .main { padding: 28px; max-width: 1200px; margin: 0 auto; }
+
+  /* ── SECTION HEADER ── */
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-family: var(--head);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .section-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* ── STAT CARDS ── */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--card-accent, var(--border));
+    border-radius: 12px 12px 0 0;
+  }
+  .stat-card.phish { --card-accent: var(--phish); }
+  .stat-card.warn  { --card-accent: var(--warn); }
+  .stat-card.spam  { --card-accent: var(--spam); }
+  .stat-card.safe  { --card-accent: var(--safe); }
+  .stat-card.blue  { --card-accent: var(--accent); }
+
+  .stat-label {
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .stat-value {
+    font-family: var(--head);
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -1px;
+  }
+  .stat-card.phish .stat-value { color: var(--phish); }
+  .stat-card.warn  .stat-value { color: var(--warn); }
+  .stat-card.spam  .stat-value { color: var(--spam); }
+  .stat-card.safe  .stat-value { color: var(--safe); }
+  .stat-card.blue  .stat-value { color: var(--accent); }
+  .stat-sub { color: var(--muted); font-size: 11px; margin-top: 4px; }
+
+  /* ── CHART AREA ── */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .chart-title {
+    font-family: var(--head);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+  .chart-title span { color: var(--muted); font-weight: 400; font-size: 11px; margin-left: 6px; }
+
+  /* ── SEATS TABLE ── */
+  .seats-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+  .seats-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .seats-title { font-family: var(--head); font-size: 13px; font-weight: 600; }
+  .btn-add {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(79,124,255,0.25);
+    border-radius: 6px;
+    padding: 5px 14px;
+    font-family: var(--head);
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-add:hover { background: rgba(79,124,255,0.2); }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    background: var(--surface2);
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 8px 16px;
+    text-align: left;
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+  tbody td { padding: 12px 16px; font-size: 12px; vertical-align: middle; }
+  .seat-name { color: var(--text); font-weight: 500; }
+  .seat-email { color: var(--muted); }
+  .seat-token {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--surface2);
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: color 0.1s;
+  }
+  .seat-token:hover { color: var(--text); }
+  .badge {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .badge-active  { background: var(--safe-dim);  color: var(--safe); }
+  .badge-revoked { background: var(--phish-dim); color: var(--phish); }
+  .action-btn {
+    background: none;
+    border: 1px solid var(--border2);
+    color: var(--muted);
+    border-radius: 5px;
+    padding: 4px 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-left: 6px;
+  }
+  .action-btn:hover { color: var(--phish); border-color: var(--phish); }
+  .action-btn.copy:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    padding: 32px;
+    width: 420px;
+    max-width: 95vw;
+  }
+  .modal h3 {
+    font-family: var(--head);
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .modal p { color: var(--muted); font-size: 12px; margin-bottom: 20px; }
+  .field-row { margin-bottom: 14px; }
+  .field-label { color: var(--muted); font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 5px; }
+  .field-row input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 9px 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field-row input:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .btn-cancel {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 9px 20px;
+    font-family: var(--head);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .token-result {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--safe);
+    word-break: break-all;
+    margin-top: 10px;
+    display: none;
+  }
+
+  /* ── RECENT SCANS ── */
+  .scan-row td:first-child { padding-left: 20px; }
+  .verdict-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    margin-right: 7px;
+    vertical-align: middle;
+  }
+  .v-PHISHING  { background: var(--phish); box-shadow: 0 0 6px var(--phish); }
+  .v-SUSPICIOUS{ background: var(--warn); }
+  .v-SPAM      { background: var(--spam); }
+  .v-SAFE      { background: var(--safe); }
+
+  /* ── EMPTY / LOADING ── */
+  .loading { color: var(--muted); padding: 24px 20px; font-size: 12px; }
+  .plan-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 18px;
+    margin-bottom: 28px;
+    font-size: 12px;
+  }
+  .plan-label { color: var(--muted); }
+  .plan-value { font-family: var(--head); font-weight: 600; color: var(--text); }
+  .plan-accent { color: var(--accent); }
+  .plan-sep { color: var(--border2); }
+
+  @media (max-width: 768px) {
+    .charts-row { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .main { padding: 16px; }
+  }
+</style>
 </head>
 <body>
-  <div class="banner-warn">Set <strong>ADMIN_SECRET</strong> in Supabase → Edge Functions → Secrets. This page calls your <strong>admin-console</strong> function API — paste the API URL below if it differs from the default.</div>
 
-  <h1>Outlook Email Evaluator — Admin</h1>
-  <p class="sub">Issue <strong>one extension token per company</strong>. They paste it in Chrome → Extension → Connection → Extension Token. Only a hash is stored in the database.</p>
-
-  <div class="card">
-    <label for="apiBase">Admin API base URL</label>
-    <input type="text" id="apiBase" placeholder="https://YOUR_PROJECT.supabase.co/functions/v1/admin-console" autocomplete="off" />
-    <p class="hint" style="color:var(--muted);font-size:12px;margin:8px 0 0;">Saved in this browser (localStorage). Must match your deployed <code>admin-console</code> function.</p>
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">Email<span>Guard</span></div>
+    <div class="login-sub">Admin Dashboard</div>
+    <input type="text" id="sb-url" placeholder="Supabase project URL" autocomplete="off" />
+    <input type="password" id="sb-key" placeholder="Service role key" autocomplete="off" />
+    <input type="text" id="org-id" placeholder="Organization ID (UUID)" autocomplete="off" />
+    <button class="btn-primary" onclick="doLogin()">Sign in</button>
+    <div id="login-error"></div>
   </div>
+</div>
 
-  <div class="card">
-    <label for="secret">Admin secret</label>
-    <input type="password" id="secret" placeholder="Same as ADMIN_SECRET in Supabase" autocomplete="off" />
-    <div class="row">
-      <button type="button" id="btnList">Load tokens</button>
-    </div>
-    <p class="err" id="err"></p>
-  </div>
-
-  <div class="card">
-    <label for="label">Company / client name</label>
-    <input type="text" id="label" placeholder="e.g. Contoso Ltd — pilot batch 2" maxlength="200" />
-    <p class="hint" style="color:var(--muted);font-size:12px;margin:8px 0 0;">Issue = deploy access — send the token to that company for <strong>Connection → Extension Token</strong>.</p>
-    <div class="row">
-      <button type="button" id="btnCreate">Issue token (deploy access)</button>
-    </div>
-    <div class="once" id="once">
-      <div id="onceText"></div>
-      <div class="once-actions"><button type="button" id="btnCopy">Copy token</button></div>
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-brand">Email<span>Guard</span></div>
+    <div class="topbar-right">
+      <span class="org-pill" id="org-name-pill">—</span>
+      <button class="btn-sm" onclick="doLogout()">Sign out</button>
     </div>
   </div>
 
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-      <strong>Access tokens</strong>
-      <button type="button" class="danger" id="btnRevokeAll" style="font-size:12px;padding:6px 12px;display:none;">Revoke all active</button>
+  <div class="main">
+    <!-- Plan bar -->
+    <div class="plan-bar">
+      <span class="plan-label">Plan</span>
+      <span class="plan-value plan-accent" id="plan-name">—</span>
+      <span class="plan-sep">|</span>
+      <span class="plan-label">Seats</span>
+      <span class="plan-value" id="seat-usage">— / —</span>
+      <span class="plan-sep">|</span>
+      <span class="plan-label">Total scans (all time)</span>
+      <span class="plan-value" id="total-scans">—</span>
     </div>
-    <p class="hint" style="color:var(--muted);font-size:12px;margin:8px 0 12px;">Revoke = immediate 401 for that token. Does <strong>not</strong> change the optional legacy <code>EXTENSION_TOKEN</code> env secret.</p>
-    <div style="overflow-x:auto;">
+
+    <!-- Stats -->
+    <div class="section-header">
+      <div class="section-title">Last 30 days</div>
+      <div class="section-line"></div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card blue">
+        <div class="stat-label">Emails scanned</div>
+        <div class="stat-value" id="s-scanned">—</div>
+        <div class="stat-sub">this month</div>
+      </div>
+      <div class="stat-card phish">
+        <div class="stat-label">Phishing caught</div>
+        <div class="stat-value" id="s-phish">—</div>
+        <div class="stat-sub">threats blocked</div>
+      </div>
+      <div class="stat-card warn">
+        <div class="stat-label">Suspicious</div>
+        <div class="stat-value" id="s-susp">—</div>
+        <div class="stat-sub">flagged for review</div>
+      </div>
+      <div class="stat-card spam">
+        <div class="stat-label">Spam</div>
+        <div class="stat-value" id="s-spam">—</div>
+        <div class="stat-sub">unwanted mail</div>
+      </div>
+      <div class="stat-card safe">
+        <div class="stat-label">Clean</div>
+        <div class="stat-value" id="s-safe">—</div>
+        <div class="stat-sub">verified safe</div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Scan activity <span>daily — last 14 days</span></div>
+        <canvas id="activity-chart" height="140"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Verdict breakdown <span>last 30 days</span></div>
+        <canvas id="donut-chart" height="180"></canvas>
+      </div>
+    </div>
+
+    <!-- Seats -->
+    <div class="section-header">
+      <div class="section-title">Seats</div>
+      <div class="section-line"></div>
+    </div>
+    <div class="seats-card">
+      <div class="seats-header">
+        <div class="seats-title">User seats</div>
+        <button class="btn-add" onclick="openAddModal()">+ Add seat</button>
+      </div>
       <table>
-        <thead><tr><th>Company</th><th>Created</th><th>Status</th><th>Revoke access</th></tr></thead>
-        <tbody id="rows"><tr><td colspan="4" style="color:var(--muted)">Click “Load tokens”</td></tr></tbody>
+        <thead>
+          <tr>
+            <th>Name / Email</th>
+            <th>Token</th>
+            <th>Status</th>
+            <th>Scans (30d)</th>
+            <th>Threats caught</th>
+            <th>Last active</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="seats-tbody">
+          <tr><td colspan="7" class="loading">Loading seats…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Recent scans -->
+    <div class="section-header">
+      <div class="section-title">Recent scans</div>
+      <div class="section-line"></div>
+    </div>
+    <div class="seats-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Verdict</th>
+            <th>Subject</th>
+            <th>Sender</th>
+            <th>Score</th>
+          </tr>
+        </thead>
+        <tbody id="scans-tbody">
+          <tr><td colspan="5" class="loading">Loading scans…</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
+</div>
 
-  <div class="card" style="border-color:#334155;">
-    <strong>Deploy Edge Function <em>code</em></strong>
-    <p class="hint" style="color:var(--muted);font-size:13px;margin:8px 0 0;">From the repo: <code>npm run deploy:functions</code></p>
+<!-- Add seat modal -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <h3>Add seat</h3>
+    <p>Creates a new extension token for this user. Send them the token to paste into the extension settings.</p>
+    <div class="field-row">
+      <div class="field-label">Name / label</div>
+      <input type="text" id="new-label" placeholder="e.g. Sarah — Finance" />
+    </div>
+    <div class="field-row">
+      <div class="field-label">Email (optional)</div>
+      <input type="text" id="new-email" placeholder="sarah@company.com" />
+    </div>
+    <div class="token-result" id="new-token-result"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddModal()">Cancel</button>
+      <button class="btn-primary" style="width:auto;padding:9px 24px" onclick="createSeat()">Generate token</button>
+    </div>
   </div>
+</div>
 
-  <script>
-(function () {
-  const DEFAULT_API = 'https://pikplhvawbhndijpkdbq.supabase.co/functions/v1/admin-console';
-  const LS_KEY = 'oe_admin_api_base';
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let SB_URL = '', SB_KEY = '', ORG_ID = '';
+let orgTokenHashes = [];
 
-  const $ = (id) => document.getElementById(id);
-  const err = $('err');
-  const rows = $('rows');
-  const once = $('once');
-  const onceText = $('onceText');
-  const apiInput = $('apiBase');
-  let lastCreatedToken = '';
+// ── Auth ─────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const url = document.getElementById('sb-url').value.trim().replace(/\/$/, '');
+  const key = document.getElementById('sb-key').value.trim();
+  const org = document.getElementById('org-id').value.trim();
+  document.getElementById('login-error').textContent = '';
+  if (!url || !key || !org) {
+    document.getElementById('login-error').textContent = 'All fields required.';
+    return;
+  }
+  // Quick test
+  try {
+    const r = await sbFetch(url, key, '/rest/v1/organizations?id=eq.' + org + '&select=id,name,plan,seat_limit,trial_ends_at');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (!data.length) throw new Error('Organization not found.');
+    SB_URL = url; SB_KEY = key; ORG_ID = org;
+    sessionStorage.setItem('oe_dash', JSON.stringify({ url, key, org }));
+    showApp(data[0]);
+  } catch(e) {
+    document.getElementById('login-error').textContent = e.message || 'Login failed.';
+  }
+}
 
-  apiInput.value = localStorage.getItem(LS_KEY) || DEFAULT_API;
-  apiInput.addEventListener('change', () => {
-    localStorage.setItem(LS_KEY, apiInput.value.trim());
+function doLogout() {
+  sessionStorage.removeItem('oe_dash');
+  location.reload();
+}
+
+function sbFetch(url, key, path, opts = {}) {
+  return fetch((url || SB_URL) + path, {
+    ...opts,
+    headers: {
+      'apikey': key || SB_KEY,
+      'Authorization': 'Bearer ' + (key || SB_KEY),
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+      ...(opts.headers || {}),
+    },
   });
+}
+const sb = (path, opts) => sbFetch(SB_URL, SB_KEY, path, opts);
 
-  function apiBase() {
-    const u = (apiInput.value || '').trim().replace(/\/$/, '');
-    return u || DEFAULT_API;
-  }
-
-  function authHeaders() {
-    const s = $('secret').value.trim();
-    if (!s) throw new Error('Enter admin secret first.');
-    return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + s };
-  }
-
-  async function api(body) {
-    err.textContent = '';
-    const res = await fetch(apiBase(), {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || res.statusText);
-    return data;
-  }
-
-  $('btnList').onclick = async () => {
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
+(function() {
+  const saved = sessionStorage.getItem('oe_dash');
+  if (saved) {
     try {
-      localStorage.setItem(LS_KEY, apiInput.value.trim());
-      const data = await api({ action: 'list' });
-      rows.innerHTML = (data.tokens || []).map((t) => {
-        const active = !t.revoked_at;
-        return '<tr><td>' + escapeHtml(t.label || '—') + '</td><td>' + escapeHtml(t.created_at || '') + '</td><td>' +
-          (active ? '<span class="badge on">Active</span>' : '<span class="badge off">Revoked</span>') + '</td><td>' +
-          (active ? '<button type="button" class="danger" data-id="' + escapeHtml(t.id) + '">Revoke access</button>' : '') + '</td></tr>';
-      }).join('') || '<tr><td colspan="4" style="color:var(--muted)">No tokens yet.</td></tr>';
-      const hasActive = (data.tokens || []).some((t) => !t.revoked_at);
-      const rAll = $('btnRevokeAll');
-      if (rAll) rAll.style.display = hasActive ? 'inline-block' : 'none';
-      rows.querySelectorAll('button[data-id]').forEach((btn) => {
-        btn.onclick = async () => {
-          if (!confirm('Revoke this token? Clients using it will stop working.')) return;
-          try {
-            await api({ action: 'revoke', id: btn.getAttribute('data-id') });
-            $('btnList').click();
-          } catch (e) { err.textContent = e.message; }
-        };
-      });
-    } catch (e) { err.textContent = e.message; }
-  };
-
-  $('btnRevokeAll').onclick = async () => {
-    if (!confirm('Revoke ALL active tokens? Every client using these tokens will get Unauthorized until you issue new tokens.')) return;
-    if (!confirm('This cannot be undone. Continue?')) return;
-    try {
-      const data = await api({ action: 'revoke_all' });
-      err.textContent = '';
-      alert('Revoked ' + (data.revoked_count ?? 0) + ' token(s).');
-      $('btnList').click();
-    } catch (e) { err.textContent = e.message; }
-  };
-
-  $('btnCreate').onclick = async () => {
-    once.classList.remove('show');
-    lastCreatedToken = '';
-    try {
-      localStorage.setItem(LS_KEY, apiInput.value.trim());
-      const data = await api({ action: 'create', label: $('label').value.trim() || null });
-      lastCreatedToken = data.token || '';
-      onceText.textContent = 'Give this to the client once (Chrome extension → Connection → Extension Token):\n\n' + data.token;
-      once.classList.add('show');
-      $('label').value = '';
-      $('btnList').click();
-    } catch (e) { err.textContent = e.message; }
-  };
-
-  $('btnCopy').onclick = async () => {
-    if (!lastCreatedToken) return;
-    try {
-      await navigator.clipboard.writeText(lastCreatedToken);
-      $('btnCopy').textContent = 'Copied!';
-      setTimeout(() => { $('btnCopy').textContent = 'Copy token'; }, 2000);
-    } catch (e) { err.textContent = 'Copy failed: ' + e.message; }
-  };
-
-  function escapeHtml(s) {
-    const d = document.createElement('div');
-    d.textContent = s;
-    return d.innerHTML;
+      const d = JSON.parse(saved);
+      document.getElementById('sb-url').value = d.url;
+      document.getElementById('sb-key').value = d.key;
+      document.getElementById('org-id').value = d.org;
+      doLogin();
+    } catch {}
   }
 })();
-  </script>
+
+// ── Show app ──────────────────────────────────────────────────────────────────
+async function showApp(org) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('org-name-pill').textContent = org.name;
+  document.getElementById('plan-name').textContent = org.plan.toUpperCase();
+
+  await Promise.all([loadStats(org), loadSeats(), loadRecentScans()]);
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+async function loadStats(org) {
+  // Fetch seat hashes for this org so we can query scan_log
+  const tokR = await sb('/rest/v1/extension_tokens?org_id=eq.' + ORG_ID + '&select=token_hash,revoked_at');
+  const tokens = tokR.ok ? await tokR.json() : [];
+  orgTokenHashes = tokens.map(t => t.token_hash);
+
+  const activeSeats = tokens.filter(t => !t.revoked_at).length;
+  document.getElementById('seat-usage').textContent = activeSeats + ' / ' + org.seat_limit;
+
+  if (!orgTokenHashes.length) {
+    ['s-scanned','s-phish','s-susp','s-spam','s-safe','total-scans'].forEach(id => {
+      document.getElementById(id).textContent = '0';
+    });
+    renderActivityChart([]);
+    renderDonut(0,0,0,0);
+    return;
+  }
+
+  const hashIn = orgTokenHashes.map(h => '"' + h + '"').join(',');
+  const since30 = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+
+  // Total scans all time
+  const totalR = await sb('/rest/v1/scan_log?token_key=in.(' + hashIn + ')&select=id', {headers:{'Prefer':'count=exact'}});
+  const totalCount = parseInt(totalR.headers?.get('Content-Range')?.split('/')[1] || '0');
+  document.getElementById('total-scans').textContent = totalCount.toLocaleString();
+
+  // Last 30d
+  const scanR = await sb('/rest/v1/scan_log?token_key=in.(' + hashIn + ')&created_at=gte.' + since30 + '&select=verdict,created_at&order=created_at.asc&limit=2000');
+  const scans = scanR.ok ? await scanR.json() : [];
+
+  const counts = { PHISHING:0, SUSPICIOUS:0, SPAM:0, SAFE:0 };
+  scans.forEach(s => { if (counts[s.verdict] !== undefined) counts[s.verdict]++; });
+
+  document.getElementById('s-scanned').textContent = scans.length.toLocaleString();
+  document.getElementById('s-phish').textContent = counts.PHISHING.toLocaleString();
+  document.getElementById('s-susp').textContent = counts.SUSPICIOUS.toLocaleString();
+  document.getElementById('s-spam').textContent = counts.SPAM.toLocaleString();
+  document.getElementById('s-safe').textContent = counts.SAFE.toLocaleString();
+
+  renderActivityChart(scans);
+  renderDonut(counts.PHISHING, counts.SUSPICIOUS, counts.SPAM, counts.SAFE);
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+function renderActivityChart(scans) {
+  const days = 14;
+  const labels = [], phishData = [], suspData = [], safeData = [];
+  for (let i = days-1; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0,10);
+    labels.push(key.slice(5));
+    const dayScans = scans.filter(s => s.created_at?.slice(0,10) === key);
+    phishData.push(dayScans.filter(s => s.verdict === 'PHISHING' || s.verdict === 'SUSPICIOUS').length);
+    safeData.push(dayScans.filter(s => s.verdict === 'SAFE').length);
+  }
+
+  const ctx = document.getElementById('activity-chart').getContext('2d');
+  if (window._actChart) window._actChart.destroy();
+  window._actChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Threats', data: phishData, backgroundColor: 'rgba(255,79,107,0.7)', borderRadius: 3, borderSkipped: false },
+        { label: 'Safe', data: safeData, backgroundColor: 'rgba(62,207,142,0.3)', borderRadius: 3, borderSkipped: false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { labels: { color: '#6b7280', font: { family: 'DM Mono', size: 11 }, boxWidth: 10, padding: 14 } } },
+      scales: {
+        x: { stacked: false, grid: { color: '#252933' }, ticks: { color: '#6b7280', font: { family: 'DM Mono', size: 10 } } },
+        y: { grid: { color: '#252933' }, ticks: { color: '#6b7280', font: { family: 'DM Mono', size: 10 }, precision: 0 } }
+      }
+    }
+  });
+}
+
+function renderDonut(phish, susp, spam, safe) {
+  const ctx = document.getElementById('donut-chart').getContext('2d');
+  if (window._donutChart) window._donutChart.destroy();
+  const total = phish + susp + spam + safe || 1;
+  window._donutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Phishing', 'Suspicious', 'Spam', 'Safe'],
+      datasets: [{ data: [phish, susp, spam, safe], backgroundColor: ['#ff4f6b','#ffb347','#9b8aff','#3ecf8e'], borderWidth: 0, hoverOffset: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '68%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#6b7280', font: { family: 'DM Mono', size: 11 }, padding: 12, boxWidth: 10 } },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.label + ': ' + ctx.raw + ' (' + Math.round(ctx.raw/total*100) + '%)' } }
+      }
+    }
+  });
+}
+
+// ── Seats ─────────────────────────────────────────────────────────────────────
+async function loadSeats() {
+  const r = await sb('/rest/v1/extension_tokens?org_id=eq.' + ORG_ID + '&select=id,label,user_email,token_hash,created_at,revoked_at&order=created_at.asc');
+  const tokens = r.ok ? await r.json() : [];
+  const since30 = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+
+  const tbody = document.getElementById('seats-tbody');
+  if (!tokens.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="loading">No seats yet — add one above.</td></tr>';
+    return;
+  }
+
+  // Fetch scan counts per token
+  const statMap = {};
+  for (const t of tokens) {
+    const sr = await sb('/rest/v1/scan_log?token_key=eq.' + t.token_hash + '&created_at=gte.' + since30 + '&select=verdict,created_at&order=created_at.desc&limit=200');
+    const scans = sr.ok ? await sr.json() : [];
+    statMap[t.token_hash] = {
+      scans30d: scans.length,
+      threats: scans.filter(s => s.verdict === 'PHISHING' || s.verdict === 'SUSPICIOUS').length,
+      lastScan: scans[0]?.created_at || null,
+    };
+  }
+
+  tbody.innerHTML = tokens.map(t => {
+    const st = statMap[t.token_hash] || {};
+    const status = t.revoked_at ? 'revoked' : 'active';
+    const lastActive = st.lastScan ? timeAgo(st.lastScan) : 'never';
+    const shortHash = t.token_hash.slice(0,12) + '…';
+    return `<tr>
+      <td>
+        <div class="seat-name">${esc(t.label || '(unnamed)')}</div>
+        <div class="seat-email">${esc(t.user_email || '')}</div>
+      </td>
+      <td><span class="seat-token" title="Click to copy full hash" onclick="copyText('${esc(t.token_hash)}', this)">${shortHash}</span></td>
+      <td><span class="badge badge-${status}">${status}</span></td>
+      <td>${st.scans30d || 0}</td>
+      <td>${st.threats || 0}</td>
+      <td>${lastActive}</td>
+      <td>
+        ${!t.revoked_at ? `<button class="action-btn" onclick="revokeSeat('${t.id}')">Revoke</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Recent scans ──────────────────────────────────────────────────────────────
+async function loadRecentScans() {
+  if (!orgTokenHashes.length) {
+    document.getElementById('scans-tbody').innerHTML = '<tr><td colspan="5" class="loading">No scans yet.</td></tr>';
+    return;
+  }
+  const hashIn = orgTokenHashes.map(h => '"' + h + '"').join(',');
+  const r = await sb('/rest/v1/scan_log?token_key=in.(' + hashIn + ')&select=verdict,phishing_score,subject,sender,created_at&order=created_at.desc&limit=20');
+  const scans = r.ok ? await r.json() : [];
+
+  const tbody = document.getElementById('scans-tbody');
+  if (!scans.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="loading">No scans found.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = scans.map(s => `<tr class="scan-row">
+    <td>${timeAgo(s.created_at)}</td>
+    <td><span class="verdict-dot v-${s.verdict}"></span>${s.verdict}</td>
+    <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${esc(s.subject || '(no subject)')}</td>
+    <td style="color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.sender || '—')}</td>
+    <td style="color:${s.phishing_score > 70 ? 'var(--phish)' : s.phishing_score > 40 ? 'var(--warn)' : 'var(--muted)'}">${s.phishing_score ?? '—'}</td>
+  </tr>`).join('');
+}
+
+// ── Add seat modal ────────────────────────────────────────────────────────────
+function openAddModal() {
+  document.getElementById('new-label').value = '';
+  document.getElementById('new-email').value = '';
+  document.getElementById('new-token-result').style.display = 'none';
+  document.getElementById('add-modal').classList.add('open');
+}
+function closeAddModal() {
+  document.getElementById('add-modal').classList.remove('open');
+  loadSeats();
+}
+
+async function createSeat() {
+  const label = document.getElementById('new-label').value.trim();
+  const email = document.getElementById('new-email').value.trim();
+  if (!label) { alert('Please enter a name for this seat.'); return; }
+
+  // Generate a plain token (random 32-byte hex), then hash it server-side via edge function
+  // For simplicity here: generate UUID-style token, store hash via service role
+  const plain = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+  const hash = await sha256(plain);
+
+  const r = await sb('/rest/v1/extension_tokens', {
+    method: 'POST',
+    body: JSON.stringify({ token_hash: hash, label, user_email: email || null, org_id: ORG_ID }),
+  });
+
+  if (r.ok) {
+    const result = document.getElementById('new-token-result');
+    result.textContent = '✓ Token generated — copy it now, it will not be shown again:\n\n' + plain;
+    result.style.display = 'block';
+  } else {
+    alert('Failed to create seat. Check console.');
+  }
+}
+
+async function revokeSeat(tokenId) {
+  if (!confirm('Revoke this seat? The user will lose access immediately.')) return;
+  await sb('/rest/v1/extension_tokens?id=eq.' + tokenId, {
+    method: 'PATCH',
+    body: JSON.stringify({ revoked_at: new Date().toISOString() }),
+  });
+  loadSeats();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function timeAgo(iso) {
+  const secs = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (secs < 60) return secs + 's ago';
+  if (secs < 3600) return Math.floor(secs/60) + 'm ago';
+  if (secs < 86400) return Math.floor(secs/3600) + 'h ago';
+  return Math.floor(secs/86400) + 'd ago';
+}
+
+function copyText(text, el) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = el.textContent;
+    el.textContent = 'copied!';
+    el.style.color = 'var(--safe)';
+    setTimeout(() => { el.textContent = orig; el.style.color = ''; }, 1500);
+  });
+}
+</script>
 </body>
 </html>
