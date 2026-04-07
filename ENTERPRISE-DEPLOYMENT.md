@@ -10,10 +10,13 @@ This document outlines the available methods for deploying the Outlook Email Eva
 
 Before deploying, ensure the following are in place:
 
-- The Supabase Edge Function is deployed and accessible
-- The `EXTENSION_TOKEN` shared secret is set in both the Supabase Edge Function environment and the extension's configuration
-- The `.crx` file has been built (see [Packaging](#packaging) below)
+- Supabase **Edge Functions** are deployed and reachable (`analyze-email` at minimum), with migrations applied per **`supabase/README.md`**
+- **Extension authentication:** either issue **per-tenant product keys** (recommended) from the **admin console** / `extension_tokens` table, or set a single legacy **`EXTENSION_TOKEN`** in Supabase secrets and distribute that same string to all users. Keys are validated server-side; only a **hash** is stored for per-tenant keys
+- Optional: **trial / annual** expiry is enforced on the server when `expires_at` is set on a token row
+- The `.crx` file has been built (see [Packaging](#packaging) below), if you distribute a packaged extension
 - You have the **Extension ID** (generated after the first load or store submission)
+
+See **`supabase/README.md`** (Admin console) for issuing keys and org-scoped setup.
 
 ---
 
@@ -191,6 +194,6 @@ For organizations using **Microsoft 365 and Intune** (the typical environment fo
 
 1. **Publish** to the Microsoft Edge Add-ons Store as an unlisted extension
 2. **Create** an Intune Settings Catalog profile to force-install on target devices
-3. **Configure** the extension's default settings (Proxy URL, Extension Token) via the extension popup on first run, or pre-configure via an additional Intune policy if the extension supports managed storage
+3. **Configure** the extension’s **Supabase Proxy URL** (`…/functions/v1/analyze-email`) and **Extension Token** (per-user or per-company key from your admin workflow) via the extension popup on first run. Managed policy pre-configuration is possible only if you add support for enterprise policy–managed storage in the extension
 
 This provides silent deployment, automatic updates, and central management with no end-user action required.

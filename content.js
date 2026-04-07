@@ -346,23 +346,44 @@ function extractEmail() {
     });
   }
 
-  // --- Attachment scraping: cast a wide net across Outlook's dynamic DOM ---
+  // --- Attachment scraping: scope to the reading pane (and one message when possible) ---
   const attachments = [];
   try {
     const attachSeen = new Set();
-    const EXT_RE = /\.\w{2,5}$/i;
+    const EXT_RE = /\.[a-z0-9]{2,5}$/i;
+    /** Emails (user@x.com) matched the old EXT_RE; long lines ending in .com were also mistaken for files. */
+    function looksLikeAttachmentFilename(raw) {
+      const name = (raw || '').trim();
+      if (!name || name.length > 220) return false;
+      if (name.includes('@') || name.includes('\n')) return false;
+      if (!EXT_RE.test(name)) return false;
+      const lower = name.toLowerCase();
+      const base = lower.slice(0, lower.lastIndexOf('.'));
+      const words = base.trim().split(/\s+/).filter(Boolean).length;
+      const tldAsFakeExt = /\.(com|net|org|io|edu|gov)$/i.test(lower);
+      if (tldAsFakeExt && words >= 4) return false;
+      return true;
+    }
     function addAttachment(raw) {
       const name = (raw || '').trim().toLowerCase();
-      if (!name || !EXT_RE.test(name) || attachSeen.has(name)) return;
+      if (!looksLikeAttachmentFilename(name) || attachSeen.has(name)) return;
       attachSeen.add(name);
       attachments.push(name);
     }
-    // Outlook attachment pills may be outside the reading pane - search full body
-    const attachRoot = document.body;
+    let attachRoot = pane;
+    try {
+      const bodyAnchor = pane.querySelector('[aria-label="Message body"]') ||
+        pane.querySelector('div[class*="UniqueMessageBody"]') ||
+        pane.querySelector('[id*="UniqueMessageBody"]');
+      if (bodyAnchor) {
+        const article = bodyAnchor.closest('[role="article"]');
+        if (article && pane.contains(article)) attachRoot = article;
+      }
+    } catch (e) {}
     // Strategy 1: aria-label attributes that look like filenames
     attachRoot.querySelectorAll('[aria-label]').forEach(el => {
       const label = el.getAttribute('aria-label') || '';
-      if (EXT_RE.test(label) && label.length < 260) addAttachment(label);
+      if (label.length < 260) addAttachment(label);
     });
     // Strategy 2: class-name-based selectors for attachment chips/pills
     attachRoot.querySelectorAll(
@@ -373,8 +394,9 @@ function extractEmail() {
     ).forEach(el => { addAttachment(el.innerText); });
     // Strategy 3: leaf-node text inside an attachment container
     attachRoot.querySelectorAll('span,div').forEach(el => {
-      if (el.children.length > 0) return;      const txt = (el.innerText || '').trim();
-      if (txt.length > 4 && txt.length < 200 && EXT_RE.test(txt) && !txt.includes('\n')) {
+      if (el.children.length > 0) return;
+      const txt = (el.innerText || '').trim();
+      if (txt.length > 4 && txt.length < 200 && !txt.includes('\n')) {
         const parent = el.closest('[class*="attach" i],[class*="Attach" i],[aria-label*="attach" i]');
         if (parent) addAttachment(txt);
       }
@@ -650,10 +672,11 @@ function setLoading() {
   document.getElementById('oe-wake-btn').style.display = 'none';
   const wakeHint = document.getElementById('oe-wake-hint');
   if (wakeHint) wakeHint.style.display = 'none';
+  // Sequential steps (no overlap): each bar can finish before the next starts.
   const _steps = [
-    { id: 'oe-step-read',     delay: 0,    duration: 1400 },
-    { id: 'oe-step-think',    delay: 1200, duration: 1800 },
-    { id: 'oe-step-generate', delay: 2800, duration: 99999 },
+    { id: 'oe-step-read',     delay: 0,    duration: 3200 },
+    { id: 'oe-step-think',    delay: 3400, duration: 3800 },
+    { id: 'oe-step-generate', delay: 7400, duration: 99999 },
   ];
   _steps.forEach(({ id, delay, duration }) => {
     setTimeout(() => {
@@ -661,7 +684,10 @@ function setLoading() {
       if (!el) return;
       el.classList.add('oe-step-active');
       setTimeout(() => {
-        if (duration < 99999) { el.classList.remove('oe-step-active'); el.classList.add('oe-step-done'); }
+        if (duration < 99999) {
+          el.classList.remove('oe-step-active');
+          el.classList.add('oe-step-done');
+        }
       }, duration);
     }, delay);
   });
@@ -843,6 +869,7 @@ function showResult(result, email) {
         </button>
       </div>
     </div>
+    <p class="oe-ai-disclaimer" role="note">This result was evaluated by AI and may be inaccurate. For a final decision on a suspicious email, contact your IT or security team for review.</p>
   `;
 
   window._oe_lastResult = result;

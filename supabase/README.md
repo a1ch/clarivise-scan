@@ -2,25 +2,27 @@
 
 This repo targets **one** hosted project: **Spammyspammerson** (`pikplhvawbhndijpkdbq`). CLI link commands and MCP below assume that ref.
 
-This folder configures that project and the `analyze-email` / `report-feedback` Edge Functions.
+This folder configures that project and the Edge Functions: **`analyze-email`**, **`report-feedback`**, and **`admin-console`**. Edge Function source is **Deno** (TypeScript); installing **[Deno](https://deno.land/)** locally is optional but improves editor support. The repo includes **`.vscode/settings.json`** so the Deno extension only activates under **`supabase/functions`**.
 
 **401 “Unauthorized” from the proxy URL (extension token is correct):** Supabase’s gateway can enforce JWT on functions (`verify_jwt`). The Chrome extension only sends `x-extension-token`, not `Authorization: Bearer …`. This repo sets **`verify_jwt = false`** for both functions in `config.toml` so the request reaches your code; auth is still enforced via `EXTENSION_TOKEN` inside the function.
 
 ## Connect to your hosted project
 
 1. Install the [Supabase CLI](https://supabase.com/docs/guides/cli).
-2. Log in: `supabase login`
+2. Log in: `npx supabase login` (or `supabase login` if the CLI is on your PATH)
 3. Link this repo to your project (get the project ref from the Supabase dashboard URL):
 
    ```bash
-   supabase link --project-ref pikplhvawbhndijpkdbq
+   npx supabase link --project-ref pikplhvawbhndijpkdbq
    ```
 
-4. Apply database migrations to the remote database:
+4. Apply database migrations to the remote database (from the repo root; use **`npx`** if the Supabase CLI is not on your PATH):
 
    ```bash
-   supabase db push
+   npx supabase db push
    ```
+
+   If the CLI reports **out-of-order** or **missing** remote history, use **`npx supabase db push --include-all`** once, or run **`npx supabase migration repair`** as suggested in the error. After changing migration filenames, teammates should **pull** before pushing.
 
 5. Set Edge Function secrets in the dashboard (**Project Settings → Edge Functions → Secrets**) or via CLI:
 
@@ -33,31 +35,43 @@ This folder configures that project and the `analyze-email` / `report-feedback` 
 6. Apply migrations and deploy functions:
 
    ```bash
-   supabase db push
+   npx supabase db push
    npm run deploy:functions
    ```
 
    This deploys `analyze-email`, `report-feedback`, and **`admin-console`**.
 
-## Admin console (issue & revoke client access tokens)
+## Admin console — issue & revoke extension tokens (product keys)
 
-The function URL **`https://<project-ref>.supabase.co/functions/v1/admin-console`** is the **API** (POST with `ADMIN_SECRET`). Do not expect it to render as a web page in the browser — use the static UI instead.
+Tokens are rows in **`extension_tokens`** (hash only in the database). They can be tied to **`organizations`** via **`org_id`** for the dashboard. Optional columns include **`license_type`** (`trial` | `annual`) and **`expires_at`**: **trial** keys expire **15 days** after issue, **annual** keys **365 days** (enforced in **`analyze-email`** / **`report-feedback`**). Rows with **`expires_at` null** behave as **unexpired legacy** keys.
 
-1. From the **repository root**, run **`npm run admin:ui`** and open **`http://localhost:8765/admin-console.html`** (or serve the repo folder with any static server). Set **Admin API base URL** to your function URL if needed.
-2. Enter **`ADMIN_SECRET`** → **Load tokens**.
-3. **Issue token (deploy access)** — creates a new token for a company; copy it once and send it to the client. They paste it into the extension **Connection → Extension Token**.
-4. **Revoke access** — per row, or **Revoke all active** (emergency; double confirmation). Extensions using revoked tokens get **401** immediately.
+### Option A — Web dashboard (`admin-console.html`)
 
-Only **SHA-256 hashes** are stored in `extension_tokens`. **Revoke does not remove** the optional legacy **`EXTENSION_TOKEN`** env secret — change that in the dashboard if you need to rotate the old shared secret.
+Best for operators who want charts, org-scoped lists, and **Trial / Annual** when creating keys.
 
-**Code deploys** (updating Edge Function source) use the CLI from this repo (`npm run deploy:functions`), not the admin page.
+1. From the **repository root**: **`npm run admin:ui`** then open **`http://localhost:8765/admin-console.html`** (fully restart the editor after first install if the tab won’t load — the static server must be running).
+2. Sign in with:
+   - **Supabase project URL** — e.g. `https://<project-ref>.supabase.co`
+   - **Service role key** — **Project Settings → API** (never share with end users or put in the extension)
+   - **Organization ID** — UUID from **`select id, name from public.organizations`**
+3. Use **Issue new company key**, choose **Trial** or **Annual**, copy the plaintext token once for the customer. They paste it in the extension **Connection → Extension Token**.
+
+### Option B — `admin-console` Edge Function (HTTP API)
+
+The URL **`https://<project-ref>.supabase.co/functions/v1/admin-console`** is a **JSON API** only (Supabase’s gateway does not reliably render HTML here). Authenticate with **`Authorization: Bearer <ADMIN_SECRET>`** (or header **`x-admin-secret`**) and POST JSON, e.g. `{ "action": "list" }`, `{ "action": "create", "label": "Acme", "license": "trial" | "annual" }`, `{ "action": "revoke", "id": "<uuid>" }`, `{ "action": "revoke_all" }`.
+
+Use **`curl`**, a script, or any API client — not the browser address bar.
+
+**Revoke** does not change the optional legacy **`EXTENSION_TOKEN`** env secret — rotate that separately in the dashboard if you still use a single shared secret.
+
+**Code deploys** (updating Edge Function source) use **`npm run deploy:functions`** from this repo, not the admin UI.
 
 ## Edge Functions from Cursor (agent deploy)
 
 The AI assistant can **edit** files under `supabase/functions/` in this repo. To **publish** those changes to hosted Supabase:
 
-1. Install and log in: [Supabase CLI](https://supabase.com/docs/guides/cli), then `supabase login`.
-2. Link this repo once: `supabase link --project-ref pikplhvawbhndijpkdbq`.
+1. Install and log in: [Supabase CLI](https://supabase.com/docs/guides/cli), then `npx supabase login`.
+2. Link this repo once: `npx supabase link --project-ref pikplhvawbhndijpkdbq`.
 3. After edits, deploy using either:
    - **CLI (reliable):** `npm run deploy:analyze-email`, `npm run deploy:report-feedback`, or `npm run deploy:functions`
    - **MCP:** With **Supabase MCP** connected, approve the **`deploy_edge_function`** tool when the agent deploys (uses the Management API; `read_only=true` only affects Postgres SQL, not function deploy).
@@ -67,8 +81,8 @@ If MCP deploy is unavailable or fails, use the npm/CLI commands above.
 ## Local development
 
 ```bash
-supabase start
-supabase db reset
+npx supabase start
+npx supabase db reset
 ```
 
 Local URLs and keys are printed when `supabase start` finishes. Use them only for local testing.

@@ -15,7 +15,7 @@ Supported Outlook URLs include `outlook.office.com`, `outlook.office365.com`, an
 - **User feedback** — optional report of false positives or missed threats (stored in Supabase for review)
 - **Collapsible sidebar** — minimal tab when collapsed
 - **Settings** — additional instructions for the model (sent with each analysis); optional org domain stored in the extension
-- **Admin console** (operators only) — issue and revoke **per-company extension tokens** via the **`admin-console`** Edge Function API; open **`admin-console.html`** locally (`npm run admin:ui`). See **`supabase/README.md`** (secret: `ADMIN_SECRET`; API base: `https://<project-ref>.supabase.co/functions/v1/admin-console`)
+- **Admin console** (operators only) — issue **per-company product keys** (stored hashed in `extension_tokens`). Two options: open **`admin-console.html`** locally (`npm run admin:ui` → `http://localhost:8765/admin-console.html`) and sign in with **Supabase project URL**, **service role key**, and an **organization UUID** (`organizations.id`); or call the **`admin-console`** Edge Function over HTTPS with **`ADMIN_SECRET`** (JSON API only — not a browsable page). Trial keys expire after **15 days**, annual keys after **365 days** (legacy keys without `expires_at` do not expire). Details: **`supabase/README.md`**
 
 ## Backend (Supabase)
 
@@ -23,10 +23,8 @@ The extension does **not** call Anthropic directly. It POSTs to your Edge Functi
 
 Deploy migrations and functions from the repo root. Full steps (CLI login, secrets, `db push`, deploy) are in **`supabase/README.md`**.
 
-- **Secrets** (set in Supabase): `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, optional legacy `EXTENSION_TOKEN`, and `ADMIN_SECRET` for the **[admin token console](supabase/README.md#admin-console-issue-tokens-to-clients)** (create per-client extension tokens).
-- **Functions**: `analyze-email` (main analysis), `report-feedback` (user feedback). Deploy with JWT verification disabled for browser calls, e.g.  
-  `supabase functions deploy analyze-email --no-verify-jwt`  
-  `supabase functions deploy report-feedback --no-verify-jwt`
+- **Secrets** (set in Supabase): `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, optional legacy **`EXTENSION_TOKEN`** (single shared secret), optional **`ADMIN_SECRET`** (for the **`admin-console`** HTTP API — not used by the Chrome extension). Per-tenant keys live in **`extension_tokens`** (issued via dashboard or API).
+- **Functions**: `analyze-email` (analysis), `report-feedback` (user feedback), `admin-console` (operator API for tokens). This repo’s **`config.toml`** sets **`verify_jwt = false`** where needed so the browser extension can call functions without a Supabase JWT. Deploy with **`npm run deploy:functions`** (or per-function scripts in `package.json`).
 
 ## Installation (developer / unpacked)
 
@@ -36,7 +34,7 @@ Deploy migrations and functions from the repo root. Full steps (CLI login, secre
 4. Click **Load unpacked** and select the project folder (the one containing `manifest.json`).
 5. Click the extension icon → **Connection** tab:
    - **Supabase Proxy URL** — your function URL, e.g. `https://YOUR_PROJECT.supabase.co/functions/v1/analyze-email`
-   - **Extension Token** — the same string as `EXTENSION_TOKEN` in Supabase secrets (not your Supabase anon key).
+   - **Extension Token** — a per-tenant key you issue (or the legacy **`EXTENSION_TOKEN`** env value if you use one shared secret). Not the Supabase anon key.
 6. Click **Save & Test Connection** (uses a lightweight `ping` to the function; no email is analyzed).
 7. Open **Settings** if you want **Additional Instructions** for the model; save.
 8. Go to Outlook on the web, open a message, and use the sidebar **Analyze Email**.

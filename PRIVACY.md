@@ -1,6 +1,6 @@
 # Privacy Policy — Outlook Email Evaluator
 
-**Last updated: March 25, 2026**
+**Last updated: April 5, 2026**
 
 ## Overview
 
@@ -58,7 +58,7 @@ For details, see [Supabase Privacy Policy](https://supabase.com/docs/company/pri
 
 Each analysis logs the following to a Supabase database for usage reporting and troubleshooting:
 
-- A hashed identifier for the extension token (not the token itself)
+- A **hashed** identifier for the extension token (not the token itself). Your project may associate tokens with **organization** metadata for licensing; that association is stored in your database under your control.
 - Verdict (Safe / Suspicious / Spam / Phishing)
 - Phishing risk score and spam score
 - Response time
@@ -72,7 +72,7 @@ Each analysis logs the following to a Supabase database for usage reporting and 
 The following are stored locally in your browser using Chrome's `chrome.storage.local` API and never leave your device except as described above:
 
 - **Proxy URL** — the address of the Supabase Edge Function
-- **Extension token** — a shared secret that authenticates your requests to the proxy
+- **Extension token** — a secret that authenticates your requests to the proxy (often a **per-tenant** key issued by your administrator; alternatively a single legacy secret configured only in Supabase)
 - **Organization domain** — used to detect external senders
 - **Custom instructions** — optional text passed to the AI on each analysis
 

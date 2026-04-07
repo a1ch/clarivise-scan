@@ -281,6 +281,18 @@
   font-style: italic;
 }
 
+/* ── AI disclaimer (bottom of analysis result) ───────────── */
+.oe-ai-disclaimer {
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--oe-text-muted);
+  margin: 10px 0 4px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--oe-divider);
+  text-align: center;
+  font-style: italic;
+}
+
 /* ── Loading hint (under step UI) ────────────────────────── */
 .oe-loading-hint {
   margin: 12px 0 0; font-size: 11px; color: var(--oe-text-muted); text-align: center; line-height: 1.4;
@@ -484,17 +496,26 @@
   width: 0%;
   border-radius: 2px;
   background: #0078d4;
-  transition: width 0.1s linear;
+  transition: width 0.2s ease;
 }
 
-/* Fill bar animation when active */
+/* Fill bar animation when active (first two steps — slower sweep) */
 .oe-step-active .oe-step-fill {
-  animation: oe-fill-bar 1.4s ease-in-out forwards;
+  animation: oe-fill-bar 2.8s ease-in-out forwards;
 }
 @keyframes oe-fill-bar {
   0%   { width: 0%; }
-  60%  { width: 85%; }
-  100% { width: 95%; }
+  55%  { width: 78%; }
+  100% { width: 92%; }
+}
+
+/* Last step: loop gently so the bar does not look frozen while waiting for the server */
+#oe-step-generate.oe-step-active .oe-step-fill {
+  animation: oe-fill-generate 2.4s ease-in-out infinite;
+}
+@keyframes oe-fill-generate {
+  0%, 100% { width: 78%; }
+  50%      { width: 94%; }
 }
 
 /* Fill bar when done — snap to 100% */
@@ -506,11 +527,11 @@
 
 /* Spinning icon on active step */
 .oe-step-active .oe-step-icon {
-  animation: oe-icon-spin 1s ease-in-out infinite alternate;
+  animation: oe-icon-spin 1.4s ease-in-out infinite alternate;
 }
 @keyframes oe-icon-spin {
-  0%   { transform: scale(1) rotate(-5deg); }
-  100% { transform: scale(1.15) rotate(5deg); }
+  0%   { transform: scale(1) rotate(-4deg); }
+  100% { transform: scale(1.12) rotate(4deg); }
 }
 
 /* Bouncing dots */
