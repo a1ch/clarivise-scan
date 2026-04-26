@@ -20,7 +20,8 @@ Small web UI where approved users request a **Chrome extension product key**. Th
 
 4. **Main file path:** leave the default **`streamlit_app.py`** (at the **repository root**).  
    That file loads the UI from **`portal/app.py`**.  
-   Dependencies are installed from the root **`requirements.txt`** (also required for this layout).
+   Dependencies are installed from the root **`requirements.txt`** (also required for this layout).  
+**Theme:** root **`.streamlit/config.toml`** sets **`base = "light"`** so sign-in tabs and inputs stay readable on the light marketing background (avoids white-on-white if the viewer uses dark mode).
 
 5. In Supabase, enable **Email** under **Authentication → Sign-in / Providers** and set **Site URL** to your Streamlit app URL (e.g. `https://your-app.streamlit.app`). Users **create an account** or **sign in** on the portal; the **work email** on the key request is the Auth email.
 

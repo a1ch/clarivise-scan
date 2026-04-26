@@ -1,0 +1,4 @@
+# Streamlit Cloud and local: keep the portal readable (forms, tabs) on the light marketing background.
+[theme]
+base = "light"
+primaryColor = "#4f46e5"

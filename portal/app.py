@@ -182,6 +182,39 @@ def _inject_saas_theme() -> None:
     }
     .block-container { padding-top: 0.5rem !important; max-width: 1100px; }
     [data-testid="stAppViewContainer"] { background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); }
+    /* Avoid “white on white” when OS/browser prefers dark or Streamlit defaults clash with our light page */
+    [data-testid="stMainBlockContainer"] { color: #1e293b; }
+    section.main [data-baseweb="tab"] {
+      color: #334155 !important;
+      background-color: #f1f5f9 !important;
+    }
+    section.main [data-baseweb="tab"][aria-selected="true"] {
+      color: #0f172a !important;
+      background-color: #ffffff !important;
+      border-bottom-color: #4f46e5 !important;
+    }
+    section.main [data-baseweb="input"] input,
+    section.main [data-baseweb="input"] textarea {
+      color: #0f172a !important;
+      -webkit-text-fill-color: #0f172a !important;
+      background-color: #ffffff !important;
+      caret-color: #0f172a !important;
+    }
+    section.main label,
+    section.main [data-testid="stWidgetLabel"] p {
+      color: #334155 !important;
+    }
+    section.main [data-testid="stCaption"] {
+      color: #64748b !important;
+    }
+    [data-testid="stTabs"] button[role="tab"] {
+      color: #334155 !important;
+      background-color: #e2e8f0 !important;
+    }
+    [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+      color: #0f172a !important;
+      background-color: #ffffff !important;
+    }
     .saas-hero {
       background: linear-gradient(145deg, #0f172a 0%, #1e1b4b 45%, #312e81 100%);
       color: #f8fafc;
