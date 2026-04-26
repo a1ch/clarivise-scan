@@ -8,7 +8,7 @@ Outlook Email Evaluator is a Chrome extension that analyzes emails in Microsoft 
 
 ## Product key signup portal
 
-If you request an extension product key through a **Streamlit** (or similar) signup portal operated for this product, you may be asked to provide **first name, last name, work email, phone number, company or team name, and mailing address** (street, city, region, postal code, country; optional second address line). That information is stored in the operator’s **Supabase** database (as **customer** / licensing records) and used to **issue and manage keys**, **operate the service**, and **contact you** if needed. It is **not** sold. Access is restricted to **service administrators** and systems using the **service role** key (treat portal deployments as internal tools). For applicable legal terms, see **`TERMS_AND_CONDITIONS.md`**.
+If you request an extension product key through a **Streamlit** (or similar) signup portal operated for this product, you may be asked to **create a login** (email and password) via **Supabase Auth**, then provide **first name, last name, phone number, company or team name, and mailing address** (street, city, region, postal code, country; optional second address line). Your **work email** for the license is the email on that Auth account. That information is stored in the operator’s **Supabase** project (**`auth.users`** and **customer** / licensing tables) and used to **issue and manage keys**, **operate the service**, and **contact you** if needed. It is **not** sold. Access is restricted to **service administrators** and systems using the **service role** key (treat portal deployments as internal tools). For applicable legal terms, see **`TERMS_AND_CONDITIONS.md`**.
 
 ## Architecture
 

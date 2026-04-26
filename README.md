@@ -69,7 +69,7 @@ Email content is sent to your **Supabase Edge Function** and then to **Anthropic
 
 ## Self-serve product key portal (Streamlit)
 
-Optional **`portal/`** Streamlit app: users enter email + company and receive an **extension token** (same hashing and trial/annual expiry as the admin tools). **Host it on [Streamlit Community Cloud](https://streamlit.io/cloud)** — use root **`streamlit_app.py`** and **`requirements.txt`**, with secrets as in **`portal/README.md`**. Local run is only for development.
+Optional **`portal/`** Streamlit app: users **create a login** (Supabase Auth) and complete the form to receive an **extension token** (same hashing and trial/annual expiry as the admin tools). **Host it on [Streamlit Community Cloud](https://streamlit.io/cloud)** — use root **`streamlit_app.py`** and **`requirements.txt`**, with **`SUPABASE_ANON_KEY`** + **`SUPABASE_SERVICE_ROLE_KEY`** and other secrets as in **`portal/README.md`**. Local run is only for development.
 
 ## Enterprise deployment
 
