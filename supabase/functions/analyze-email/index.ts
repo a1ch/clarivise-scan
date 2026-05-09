@@ -37,7 +37,7 @@ function checkForGiftCardFraud(subject: string, body: string): boolean {
 }
 
 const SAFE_DECOY_EXTENSIONS = ['.pdf','.doc','.docx','.xls','.xlsx','.ppt','.pptx','.txt','.png','.jpg','.jpeg','.gif','.csv']
- classifyAttachments(attachments: string[]): {
+function classifyAttachments(attachments: string[]): {
   highRisk: string[], suspicious: string[], doubleExt: string[],
   hasHighRisk: boolean, hasSuspicious: boolean, count: number, highCount: boolean
 } {
@@ -110,7 +110,8 @@ interface EmailData {
   replyTo?: string | null
   onBehalfOf?: string | null
   viaHeader?: string | null
-  displayName?: string | null  senderEmail?: string | null
+  displayName?: string | null
+  senderEmail?: string | null
   displayNameMismatch?: boolean
   outlookWarnings?: string[]
   isOutlookExternal: boolean
@@ -168,35 +169,28 @@ function getTrustedSaasMatch(sender: string): { domain: string; name: string; li
 }
 
 // ── Extract sender domain from email address ──────────────────────────────────
-// Handles formats like: "Display Name <user@domain.com>", "user@domain.com"
 function extractSenderDomain(sender: string): string {
   if (!sender) return ""
   const s = sender.toLowerCase()
-  // Match email address in angle brackets first, then bare email
   const match = s.match(/<[^>]*@([a-z0-9.-]+)>/) || s.match(/@([a-z0-9.-]+)/)
   return match ? match[1] : ""
 }
 
 // ── Determine if sender is external based on domain comparison ────────────────
-// Returns: 'internal' | 'external' | 'unknown'
 function classifySenderDomain(sender: string, tenantDomain: string): 'internal' | 'external' | 'unknown' {
   if (!tenantDomain) return 'unknown'
   const senderDomain = extractSenderDomain(sender)
   if (!senderDomain) return 'unknown'
-  // Internal if sender domain matches or is a subdomain of tenantDomain
   if (senderDomain === tenantDomain || senderDomain.endsWith("." + tenantDomain)) return 'internal'
   return 'external'
 }
 
 
 // ── Lookalike Domain Detection ─────────────────────────────────────────────
-// Detects domains impersonating well-known brands via character substitution,
-// Levenshtein distance, subdomain abuse, and homoglyph swaps.
-
 interface BrandEntry {
   name: string
-  domains: string[]      // All legitimate domains for this brand
-  keywords: string[]     // Core brand keywords to match against display text
+  domains: string[]
+  keywords: string[]
 }
 
 const BRAND_LIST: BrandEntry[] = [
@@ -244,12 +238,10 @@ const BRAND_LIST: BrandEntry[] = [
   { name: "LastPass",        domains: ["lastpass.com"],                            keywords: ["lastpass"] },
 ]
 
-// Normalise a domain: strip www. and trailing slash, lowercase
 function normaliseDomain(d: string): string {
   return d.replace(/^www\./i, '').toLowerCase().split('/')[0].split(':')[0]
 }
 
-// Levenshtein distance (iterative, O(n*m))
 function levenshtein(a: string, b: string): number {
   const m = a.length, n = b.length
   const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
@@ -265,27 +257,24 @@ function levenshtein(a: string, b: string): number {
   return dp[m][n]
 }
 
-// Homoglyph / number-swap normalisation: map visually similar chars to canonical form
 const HOMOGLYPH_MAP: Record<string, string> = {
   '0': 'o', '1': 'l', '3': 'e', '4': 'a', '5': 's', '6': 'b', '7': 't', '8': 'b',
   'vv': 'w', 'rn': 'm', 'cl': 'd', 'ii': 'u',
 }
 function normaliseHomoglyphs(s: string): string {
   let r = s.toLowerCase()
-  // Multi-char substitutions first
   for (const [from, to] of Object.entries(HOMOGLYPH_MAP)) {
     if (from.length > 1) r = r.split(from).join(to)
   }
-  // Single-char substitutions
   r = r.split('').map(c => (HOMOGLYPH_MAP[c] && HOMOGLYPH_MAP[c].length === 1 ? HOMOGLYPH_MAP[c] : c)).join('')
   return r
 }
 
 interface LookalikeHit {
-  domain: string       // The suspicious domain
-  brand: string        // Brand it's impersonating
-  technique: string    // How it was detected
-  legitimateDomain: string  // The real domain
+  domain: string
+  brand: string
+  technique: string
+  legitimateDomain: string
 }
 
 function detectLookalikeDomains(links: EmailLink[]): LookalikeHit[] {
@@ -295,13 +284,11 @@ function detectLookalikeDomains(links: EmailLink[]): LookalikeHit[] {
   for (const link of links) {
     if (!link.href) continue
     const raw = normaliseDomain(link.href)
-    // Strip port
     const domain = raw.split(':')[0]
     if (!domain || domain.length < 4) continue
-    // Extract registrable domain (last two parts) and full hostname
     const parts = domain.split('.')
     if (parts.length < 2) continue
-    const registrable = parts.slice(-2).join('.')   // e.g. "paypa1.com"
+    const registrable = parts.slice(-2).join('.')
     const tld = parts[parts.length - 1]
 
     for (const brand of BRAND_LIST) {
@@ -310,24 +297,18 @@ function detectLookalikeDomains(links: EmailLink[]): LookalikeHit[] {
         const legitParts = legitNorm.split('.')
         const legitRegistrable = legitParts.slice(-2).join('.')
 
-        // Skip if it IS the legitimate domain (exact or subdomain)
         if (domain === legitNorm || domain.endsWith('.' + legitNorm)) continue
-        // Skip if registrable domains match (already caught by exact check)
         if (registrable === legitRegistrable) continue
 
         const key = `${domain}::${legit}`
         if (seen.has(key)) continue
 
-        // ── Technique 1: Subdomain abuse ─────────────────────────────────
-        // e.g. microsoft.com.evil.ru — legitimate brand appears as a subdomain
         if (domain.includes('.' + legitNorm + '.') || domain.startsWith(legitNorm + '.')) {
           seen.add(key)
           hits.push({ domain, brand: brand.name, technique: 'subdomain-abuse', legitimateDomain: legit })
           break
         }
 
-        // ── Technique 2: Homoglyph-normalised exact match ─────────────────
-        // e.g. paypa1.com -> paypal.com after normalisation
         const normDomain = normaliseHomoglyphs(registrable)
         const normLegit  = normaliseHomoglyphs(legitRegistrable)
         if (normDomain === normLegit && registrable !== legitRegistrable) {
@@ -336,18 +317,12 @@ function detectLookalikeDomains(links: EmailLink[]): LookalikeHit[] {
           break
         }
 
-        // ── Technique 3: Levenshtein distance ────────────────────────────
-        // Only compare if TLD matches (reduces false positives) and
-        // brand keyword appears somewhere in the domain (avoids flagging
-        // completely unrelated short domains)
         if (tld === legitParts[legitParts.length - 1]) {
-          const brandCore = legitParts[0]  // e.g. "paypal" from "paypal.com"
+          const brandCore = legitParts[0]
           const dist = levenshtein(registrable, legitRegistrable)
-          const maxLen = Math.max(registrable.length, legitRegistrable.length)
-          // Distance 1-2 edits AND domain contains some chars from brand name
-          // AND normalised forms differ (catches swaps not caught above)
-          if (dist >= 1 && dist <= 2 && normDomain !== normLegit) {
-            // Extra guard: at least 60% char overlap to avoid false positives
+          const normDomain2 = normaliseHomoglyphs(registrable)
+          const normLegit2  = normaliseHomoglyphs(legitRegistrable)
+          if (dist >= 1 && dist <= 2 && normDomain2 !== normLegit2) {
             const overlap = [...registrable].filter(c => legitRegistrable.includes(c)).length
             if (overlap / brandCore.length >= 0.6) {
               seen.add(key)
@@ -362,7 +337,8 @@ function detectLookalikeDomains(links: EmailLink[]): LookalikeHit[] {
 
   return hits
 }
-// ── Prompt builder (all analysis logic lives here, not in the extension) ─────
+
+// ── Prompt builder ─────────────────────────────────────────────────────────
 function buildPrompt(e: EmailData, customPrompt: string, tenantDomain: string): string {
   const now = new Date()
   const utcString = now.toUTCString()
@@ -425,26 +401,20 @@ function buildPrompt(e: EmailData, customPrompt: string, tenantDomain: string): 
       }).join("\n")
     : " (No links found)"
 
-  // ── Server-side external classification (more reliable than client-side banner) ──
   const senderDomainClassification = classifySenderDomain(e.sender, tenantDomain)
   const senderDomain = extractSenderDomain(e.sender)
 
   let externalNote: string
   if (senderDomainClassification === 'internal') {
-    // Domain matches tenant — definitely internal, override Outlook's banner if needed
     externalNote = `NO - sender domain "${senderDomain}" matches your organization domain "${tenantDomain}". Treat as INTERNAL.`
   } else if (senderDomainClassification === 'external') {
-    // Domain does NOT match tenant — definitely external
     externalNote = `YES - sender domain "${senderDomain}" does NOT match your organization domain "${tenantDomain}". This is an EXTERNAL sender.`
   } else if (e.isOutlookExternal) {
-    // No tenant domain configured but Outlook flagged it
     externalNote = "YES - Microsoft Outlook has confirmed this is from an external organization (no tenant domain configured to verify further)."
   } else {
-    // No tenant domain and no Outlook flag
     externalNote = "UNKNOWN - no organization domain configured in settings and Outlook has not flagged this as external. Do not assume external based on display name alone."
   }
 
-  // Trust note for known Microsoft system senders
   const microsoftTrustNote = isTrustedMicrosoftSender(e.sender)
     ? `TRUSTED MICROSOFT SYSTEM EMAIL: The sender "${e.sender}" is a known legitimate Microsoft automated notification service (Power Automate, SharePoint, Teams, Azure, etc.).
 CRITICAL RULES for this email:
@@ -455,7 +425,6 @@ CRITICAL RULES for this email:
 5. If the email content matches expected Microsoft system notification patterns (flow alerts, subscription changes, service updates, security codes for services the user likely uses), lean toward SAFE.`
     : ""
 
-  // Trust note for known third-party SaaS senders
   const saasMatch = getTrustedSaasMatch(e.sender)
   const saasTrustNote = saasMatch
     ? `TRUSTED THIRD-PARTY SAAS EMAIL: The sender "${e.sender}" is a known legitimate notification from ${saasMatch.name}.
@@ -467,10 +436,7 @@ CRITICAL RULES for this email:
 5. Sign-in alerts, new device notifications, and account activity summaries from ${saasMatch.name} are routine and expected — lean toward SAFE if content matches normal ${saasMatch.name} notification patterns.`
     : ""
 
-
-  // ── Header signal block for the prompt ──────────────────────────────────────
   const headerLines: string[] = []
-
   if (e.displayName && e.senderEmail) {
     headerLines.push(`Sender display name: "${e.displayName}" | Actual email: ${e.senderEmail}`)
   }
@@ -506,12 +472,16 @@ CRITICAL RULES for this email:
   const headerSignalsBlock = headerLines.length > 0
     ? `\nHEADER SIGNALS (extracted from Outlook DOM — treat as high-confidence data):\n${headerLines.join('\n')}\n`
     : ''
-  // ── Lookalike domain warning block ──────────────────────────────────────
+
   let lookalikeWarning = ''
   if (lookalikesDetected.length > 0) {
     const hitLines = lookalikesDetected.map(
-      h => `  -  is impersonating  () — detected via `
-    ).join('\n')    lookalikeWarning = `LOOKALIKE DOMAIN ALERT: The following link domains appear to be impersonating well-known brands. You MUST flag each one as a finding. Set verdict to at least SUSPICIOUS; if combined with credential requests or urgency, set to PHISHING with phishing_score >= 85.\n\n`  }  return `You are a cybersecurity educator helping everyday office workers learn to identify email threats. Analyze the email below and respond ONLY with a JSON object - no markdown, no text outside the JSON.
+      h => `  - ${h.domain} is impersonating ${h.brand} (${h.legitimateDomain}) — detected via ${h.technique}`
+    ).join('\n')
+    lookalikeWarning = `LOOKALIKE DOMAIN ALERT: The following link domains appear to be impersonating well-known brands. You MUST flag each one as a finding. Set verdict to at least SUSPICIOUS; if combined with credential requests or urgency, set to PHISHING with phishing_score >= 85.\n\n${hitLines}\n`
+  }
+
+  return `You are a cybersecurity educator helping everyday office workers learn to identify email threats. Analyze the email below and respond ONLY with a JSON object - no markdown, no text outside the JSON.
 
 IMPORTANT CONTEXT:
 - Current date/time: ${utcString} (UTC) / ${localString} (${tz}). Do not flag dates as suspicious if they fall within the current day across timezones.
@@ -543,7 +513,7 @@ KEY RULES:
    a. If Reply-To domain differs from sender domain: flag as suspicious finding — this is used to intercept replies.
    b. If display name mismatch is confirmed (flagged above): MUST set verdict to at least SUSPICIOUS and MUST include a finding.
    c. If "Sent on behalf of" is present: note it, but only flag if the delegating address seems inconsistent with the email content.
-   d. If "Sent via" is an unknown relay: note it; if via a known ESP it is normal for marketing.. GIFT CARD RULE: Any request to purchase or send gift cards of any kind
+   d. If "Sent via" is an unknown relay: note it; if via a known ESP it is normal for marketing.
 9. LOOKALIKE DOMAIN RULE: Any domain flagged as LOOKALIKE ALERT in the links section MUST be included as a finding. Explain what character substitution or typosquatting means in plain language. Set verdict to at least SUSPICIOUS.
 10. GIFT CARD RULE: Any request to purchase or send gift cards of any kind (iTunes, Google Play, Amazon, Visa, Steam, etc.) MUST be flagged as PHISHING with phishing_score of 99. No legitimate business ever requests gift card payments. This is always fraud.
 
@@ -618,7 +588,6 @@ serve(async (req) => {
   }
   const headerToken = req.headers.get("x-extension-token") ?? ""
   const raw = parsedBody as Record<string, unknown>
-  // Use `oeAuth` in JSON body — some proxies flag or strip a top-level `token` field; legacy `token` still accepted.
   const bodyToken =
     (typeof raw?.oeAuth === "string" ? raw.oeAuth : "") ||
     (typeof raw?.token === "string" ? raw.token : "")
@@ -726,6 +695,7 @@ serve(async (req) => {
   }
 
   const prompt = buildPrompt(emailData, customPrompt, tenantDomain)
+  const lookalikesDetected = detectLookalikeDomains(emailData.links || [])
 
   try {
     const t0 = Date.now()
@@ -737,7 +707,7 @@ serve(async (req) => {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 2000,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -770,14 +740,16 @@ serve(async (req) => {
       recipient: clipLogField(emailData.recipient, MAX_LOG_ADDRESS_LEN),
     }).then(() => {})
 
-    // Attach lookalike hits so the client can badge individual link rows    const resultWithLookalikes = {      ...parsed,      lookalikeDomains: lookalikesDetected.map(h => ({
+    const resultWithLookalikes = {
+      ...parsed,
+      lookalikeDomains: lookalikesDetected.map(h => ({
         domain: h.domain,
         brand: h.brand,
         technique: h.technique,
         legitimateDomain: h.legitimateDomain,
       })),
-      itSecurityEmail: itEmail,
-    }    return json({ result: resultWithLookalikes }, 200, corsHeaders)
+    }
+    return json({ result: resultWithLookalikes }, 200, corsHeaders)
 
   } catch (err) {
     return json({ error: `Upstream fetch failed: ${(err as Error).message}` }, 502, corsHeaders)
