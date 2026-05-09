@@ -1,7 +1,19 @@
 importScripts('proxy-utils.js')
 
+const DEFAULT_PROXY_URL  = 'https://pikplhvawbhndijpkdbq.supabase.co/functions/v1/analyze-email'
+const DEFAULT_EXT_TOKEN  = '354d358e-5fed-4d6f-8fb3-f3dba0b661e3'
+
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Outlook Email Evaluator installed.')
+  // Set defaults only if the user hasn't configured them yet
+  chrome.storage.local.get(['proxyUrl', 'extensionToken'], (data) => {
+    const updates = {}
+    if (!data.proxyUrl)       updates.proxyUrl       = DEFAULT_PROXY_URL
+    if (!data.extensionToken) updates.extensionToken = DEFAULT_EXT_TOKEN
+    if (Object.keys(updates).length > 0) {
+      chrome.storage.local.set(updates)
+    }
+  })
 })
 
 // Content script messages include sender.tab; other callers may not — guard before sendMessage.
@@ -15,8 +27,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'ANALYZE_EMAIL') {
     if (!sender.tab?.id) return false
     chrome.storage.local.get(['proxyUrl', 'extensionToken', 'customPrompt', 'tenantDomain', 'itSecurityEmail'], async (result) => {
-      const proxyUrl = (result.proxyUrl || '').trim()
-      const extToken = (result.extensionToken || '').trim()
+      const proxyUrl = (result.proxyUrl || DEFAULT_PROXY_URL).trim()
+      const extToken = (result.extensionToken || DEFAULT_EXT_TOKEN).trim()
       const customPrompt = result.customPrompt || ''
       const tenantDomain = (result.tenantDomain || '').trim()
 
@@ -88,8 +100,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SUBMIT_FEEDBACK') {
     if (!sender.tab?.id) return false
     chrome.storage.local.get(['proxyUrl', 'extensionToken'], async (result) => {
-      const proxyUrl = (result.proxyUrl || '').trim()
-      const extToken = (result.extensionToken || '').trim()
+      const proxyUrl = (result.proxyUrl || DEFAULT_PROXY_URL).trim()
+      const extToken = (result.extensionToken || DEFAULT_EXT_TOKEN).trim()
 
       if (!proxyUrl || !extToken) {
         chrome.tabs.sendMessage(sender.tab.id, {
