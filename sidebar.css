@@ -1,4 +1,4 @@
-﻿/* ── CSS Variables (Light mode defaults) ─────────────────── */
+/* ── CSS Variables (Light mode defaults) ─────────────────── */
 #oe-sidebar {
   --oe-bg: #f5f5f5;
   --oe-panel-bg: #f5f5f5;
@@ -232,6 +232,44 @@
 .oe-link-dest a:hover { text-decoration: underline; }
 .oe-link-mismatch .oe-link-dest { color: #ff6b6b; font-weight: 700; }
 .oe-link-mismatch .oe-link-dest a { color: #ff6b6b; }
+
+/* ── Report to IT / Send to Security section ─────────────── */
+.oe-report-it-section {
+  background: var(--oe-card-bg);
+  border: 1px solid var(--oe-card-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.oe-report-it-title {
+  font-weight: 600; font-size: 11px; color: var(--oe-section-title);
+  text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px;
+}
+.oe-report-it-hint {
+  font-size: 11px; color: var(--oe-text-muted);
+  line-height: 1.4; margin-bottom: 8px;
+}
+.oe-report-it-hint strong { color: var(--oe-text); }
+.oe-report-it-btn {
+  width: 100%; padding: 8px 0;
+  background: #0078d4; color: white;
+  border: none; border-radius: 4px;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: background 0.15s;
+}
+.oe-report-it-btn:hover:not(:disabled) { background: #006cbe; }
+.oe-report-it-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Dark mode overrides for the security section */
+.oe-dark .oe-report-it-section {
+  background: var(--oe-card-bg);
+  border-color: var(--oe-card-border);
+}
+.oe-dark .oe-report-it-title { color: var(--oe-section-title); }
+.oe-dark .oe-report-it-hint  { color: var(--oe-text-muted); }
+.oe-dark .oe-report-it-hint strong { color: var(--oe-text); }
+.oe-dark .oe-report-it-btn   { background: #1a6bb5; }
+.oe-dark .oe-report-it-btn:hover:not(:disabled) { background: #2280d0; }
 
 /* ── Feedback section ────────────────────────────────────── */
 .oe-feedback-section {
