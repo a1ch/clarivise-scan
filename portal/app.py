@@ -147,7 +147,6 @@ def _inject_saas_theme() -> None:
     section.main [data-baseweb="input"] textarea { color:#0f172a !important; -webkit-text-fill-color:#0f172a !important; background-color:#fff !important; caret-color:#0f172a !important; }
     section.main label, section.main [data-testid="stWidgetLabel"] p { color:#334155 !important; }
     section.main [data-testid="stCaption"] { color:#64748b !important; }
-    /* Hero */
     .saas-hero { background:linear-gradient(145deg,#0f172a 0%,#1e1b4b 45%,#312e81 100%); color:#f8fafc; border-radius:20px; padding:2.6rem 2.1rem 2.4rem; margin-bottom:1.75rem; box-shadow:0 32px 64px -24px rgba(15,23,42,.45); position:relative; overflow:hidden; }
     .saas-hero::after { content:""; position:absolute; top:-50%; right:-20%; width:60%; height:200%; background:radial-gradient(ellipse,rgba(99,102,241,.28) 0%,transparent 70%); pointer-events:none; }
     .saas-hero-inner { position:relative; z-index:1; }
@@ -156,7 +155,6 @@ def _inject_saas_theme() -> None:
     .saas-hero p.lead { font-size:1.1rem; line-height:1.6; color:#cbd5e1; max-width:38rem; margin:0 0 1.1rem; }
     .saas-hero .pill-row { display:flex; flex-wrap:wrap; gap:.45rem; margin-top:.6rem; }
     .saas-pill { font-size:.78rem; color:#e0e7ff; background:rgba(15,23,42,.35); border:1px solid rgba(148,163,184,.2); border-radius:8px; padding:.32rem .7rem; }
-    /* Product cards */
     .product-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin:1.5rem 0; }
     .product-card { border-radius:16px; padding:1.75rem; border:1px solid var(--saas-border); background:#fff; box-shadow:0 2px 8px rgba(15,23,42,.06); position:relative; overflow:hidden; }
     .product-card.scan { border-top:4px solid #4f46e5; }
@@ -171,7 +169,6 @@ def _inject_saas_theme() -> None:
     .product-card .feature-list li::before { content:"✓"; color:#059669; font-weight:700; flex-shrink:0; margin-top:1px; }
     .product-card .price-row { font-size:.82rem; color:#6b7280; border-top:1px solid #f1f5f9; padding-top:.75rem; margin-top:.25rem; }
     .product-card .price-row strong { color:#0f172a; }
-    /* Shared components */
     .saas-trust { display:flex; flex-wrap:wrap; align-items:center; gap:1.1rem 1.5rem; margin:1.4rem 0 1.75rem; color:var(--saas-muted); font-size:.88rem; }
     .saas-trust strong { color:var(--saas-ink); }
     .saas-trust .dot { color:#cbd5e1; }
@@ -194,7 +191,6 @@ def _inject_saas_theme() -> None:
     .saas-price-card .price { font-size:1.35rem; font-weight:700; color:var(--saas-ink); margin:.4rem 0; }
     .saas-price-card .sub { font-size:.78rem; color:var(--saas-muted); line-height:1.4; }
     div[data-testid="stExpander"] details { background:#fff; border:1px solid var(--saas-border) !important; border-radius:10px; }
-    /* Legal */
     .legal-container { max-width:860px; margin:0 auto; }
     .legal-hero { border-radius:16px; padding:2rem 2rem 1.75rem; margin-bottom:1.5rem; }
     .legal-hero h1 { font-size:1.6rem; font-weight:700; margin:0 0 .3rem; color:#fff; }
@@ -254,7 +250,6 @@ def render_in_page_navigation(p: dict[str, str]) -> None:
 
 # ── Home page ──────────────────────────────────────────────────────────────────
 def render_portal_landing(p: dict[str, str]) -> None:
-    # Hero
     st.markdown("""
 <div class="saas-hero">
   <div class="saas-hero-inner">
@@ -276,10 +271,9 @@ def render_portal_landing(p: dict[str, str]) -> None:
   <span class="dot">·</span>
   <span><strong>Two layers</strong> — on-demand analysis and automatic mail transport protection</span>
   <span class="dot">·</span>
-  <span><strong>AI-powered</strong> — real-time phishing, spam, and BEC detection</span>
+  <span><strong>Undercuts the competition</strong> — Proofpoint starts at $3, Mimecast at $5. We're below both.</span>
 </div>""", unsafe_allow_html=True)
 
-    # Product lines
     st.markdown('<p class="saas-section-title" style="margin-top:0.5rem;">Our products</p>', unsafe_allow_html=True)
     st.markdown('<h2 class="saas-h2">Two layers of email security</h2>', unsafe_allow_html=True)
 
@@ -298,7 +292,7 @@ def render_portal_landing(p: dict[str, str]) -> None:
       <li>Send to IT Security button</li>
       <li>Works inside Outlook — no new app</li>
     </ul>
-    <div class="price-row"><strong>$4–8 / user / month</strong> &nbsp;·&nbsp; Trial (15 days) or Annual · Chrome extension</div>
+    <div class="price-row"><strong>$3–5 / user / month (USD)</strong> &nbsp;·&nbsp; Free 15-day trial · Annual license · Chrome extension</div>
   </div>
 
   <div class="product-card shield">
@@ -313,12 +307,11 @@ def render_portal_landing(p: dict[str, str]) -> None:
       <li>Admin dashboard with scan log</li>
       <li>Daily AI security summary email</li>
     </ul>
-    <div class="price-row"><strong>$10–20 / user / month</strong> &nbsp;·&nbsp; Enterprise · M365 mail transport integration</div>
+    <div class="price-row"><strong>$8–12 / user / month (USD)</strong> &nbsp;·&nbsp; Contact us for pricing · M365 mail transport integration</div>
   </div>
 
 </div>""", unsafe_allow_html=True)
 
-    # How Scan works
     st.markdown('<div style="margin:1.5rem 0 .75rem;"><p class="saas-section-title">Clarivise Scan</p><h2 class="saas-h2" style="margin-top:0">From open email to verdict in seconds</h2></div>', unsafe_allow_html=True)
     st.markdown("""
 <div class="saas-steps">
@@ -327,7 +320,6 @@ def render_portal_landing(p: dict[str, str]) -> None:
   <div class="saas-step"><div class="n">3</div><h4>Get the verdict</h4><p>Claude AI returns a phishing score, spam score, and plain-English explanation of any red flags.</p></div>
 </div>""", unsafe_allow_html=True)
 
-    # How Shield works
     st.markdown('<div style="margin:1.5rem 0 .75rem;"><p class="saas-section-title">Clarivise Shield</p><h2 class="saas-h2" style="margin-top:0">Automatic protection at the transport layer</h2></div>', unsafe_allow_html=True)
     st.markdown("""
 <div class="saas-steps">
@@ -337,8 +329,7 @@ def render_portal_landing(p: dict[str, str]) -> None:
   <div class="saas-step"><div class="n">4</div><h4>Daily summary</h4><p>IT receives a daily email with all verdicts, threat counts, and flagged senders.</p></div>
 </div>""", unsafe_allow_html=True)
 
-    # Pricing
-    st.markdown('<div style="margin:1.5rem 0 .75rem;"><p class="saas-section-title">Pricing</p><h2 class="saas-h2" style="margin-top:0">Simple per-user pricing, no surprises</h2></div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin:1.5rem 0 .75rem;"><p class="saas-section-title">Pricing</p><h2 class="saas-h2" style="margin-top:0">Simple per-user pricing in USD — below the competition</h2></div>', unsafe_allow_html=True)
     st.markdown("""
 <div class="saas-pricing">
   <div class="saas-price-card">
@@ -349,13 +340,13 @@ def render_portal_landing(p: dict[str, str]) -> None:
   <div class="saas-price-card popular">
     <div class="tag">Most popular</div>
     <h3>📧 Scan — Annual</h3>
-    <div class="price">$4–8 / user / mo</div>
-    <p class="sub">One product key per user, 365-day license. On-demand analysis in Outlook on the web.</p>
+    <div class="price">$3–5 / user / mo</div>
+    <p class="sub">One product key per user, 365-day license. On-demand AI analysis in Outlook on the web. Undercuts Proofpoint Essentials.</p>
   </div>
   <div class="saas-price-card">
     <h3>🛡️ Shield</h3>
-    <div class="price">$10–20 / user / mo</div>
-    <p class="sub">Full mail transport protection. Automatic analysis of 100% of inbound email. Contact us for pricing.</p>
+    <div class="price">$8–12 / user / mo</div>
+    <p class="sub">Full mail transport protection. Automatic analysis of 100% of inbound email. Well below Mimecast. Contact us for a quote.</p>
   </div>
 </div>""", unsafe_allow_html=True)
 
@@ -370,22 +361,18 @@ def render_portal_landing(p: dict[str, str]) -> None:
 | Admin dashboard | ❌ | ✅ Full scan log + quarantine queue |
 | Daily summary email | ❌ | ✅ |
 | Best for | Individual users, small teams | Organizations, IT departments |
-| Price | $4–8 / user / mo | $10–20 / user / mo |
+| Price (USD) | $3–5 / user / mo | $8–12 / user / mo |
+| vs Proofpoint ($3–6) | ✅ Competitive | — |
+| vs Mimecast ($5–15) | — | ✅ Competitive |
         """)
 
     with st.expander("How the AI analysis works", expanded=False):
         st.markdown("""
 Both products use **Claude AI** (Anthropic) via a secure **Supabase Edge Function**. Email metadata is sent server-side — your Anthropic API key never leaves the server.
 
-**What's analyzed:**
-- Sender domain vs display name (impersonation detection)
-- Link destinations vs display text (mismatch detection)
-- Attachment names and extensions
-- Body text patterns (urgency, credential requests, gift card asks)
-- Reply-To vs From domain mismatches
-- Lookalike domain detection (typosquatting)
+**What's analyzed:** sender domain vs display name, link destinations vs display text, attachment names and extensions, body text patterns (urgency, credential requests, gift card asks), Reply-To vs From domain mismatches, lookalike domain detection (typosquatting).
 
-**Shield additionally uses prompt caching** — the analysis system prompt is cached at Anthropic, reducing per-email AI cost by ~90% on cache hits.
+**Cost efficiency:** both products use **prompt caching** — the analysis system prompt is cached at Anthropic, reducing per-email AI cost by ~40% on input tokens. This is how we price below Proofpoint and Mimecast while maintaining healthy margins.
         """)
 
 
@@ -432,7 +419,7 @@ def render_terms_content() -> None:
 <div class="legal-section" id="s4"><h2>4. Disclaimer of Warranties</h2><p class="legal-caps">TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE." INGOT SOLUTIONS DISCLAIMS ALL WARRANTIES, WHETHER EXPRESS, IMPLIED, OR STATUTORY, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. WE DO NOT WARRANT THAT THE SOFTWARE WILL BE ERROR-FREE, UNINTERRUPTED, OR FREE OF HARMFUL COMPONENTS.</p></div>
 <div class="legal-section" id="s5"><h2>5. Limitation of Liability</h2>
   <p class="legal-caps">TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT SHALL INGOT SOLUTIONS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, DATA, GOODWILL, OR BUSINESS, ARISING OUT OF OR RELATED TO THESE TERMS OR THE SOFTWARE.</p>
-  <p class="legal-caps" style="margin-top:.75rem;">INGOT SOLUTIONS' TOTAL AGGREGATE LIABILITY SHALL NOT EXCEED THE GREATER OF (A) AMOUNTS YOU PAID IN THE TWELVE (12) MONTHS BEFORE THE CLAIM, OR (B) ONE HUNDRED CANADIAN DOLLARS (CAD $100) IF NO FEES APPLIED.</p>
+  <p class="legal-caps" style="margin-top:.75rem;">INGOT SOLUTIONS' TOTAL AGGREGATE LIABILITY SHALL NOT EXCEED THE GREATER OF (A) AMOUNTS YOU PAID IN THE TWELVE (12) MONTHS BEFORE THE CLAIM, OR (B) USD $100 IF NO FEES APPLIED.</p>
   <p style="margin-top:.75rem;"><strong>Email misclassification:</strong> You expressly acknowledge that Ingot Solutions shall not be liable for any loss or damage resulting from incorrect classification of email, including security incidents, financial loss, or regulatory exposure.</p>
 </div>
 <div class="legal-section" id="s6"><h2>6. Indemnity</h2><p>You will defend, indemnify, and hold harmless Ingot Solutions and its officers, directors, employees, and agents from and against any claims, damages, losses, liabilities, costs, and expenses (including reasonable legal fees) arising out of or related to: (a) your use of the Software; (b) your violation of these Terms; (c) your violation of any law or third-party right; or (d) data you submit through the Software or signup portal.</p></div>
@@ -446,7 +433,7 @@ def render_terms_content() -> None:
 <div class="legal-section" id="s14"><h2>14. Governing Law and Venue</h2><p>These Terms are governed by the laws of the <strong>Province of Alberta</strong> and the federal laws of <strong>Canada</strong>. You attorn to the exclusive jurisdiction of the courts located in Alberta.</p></div>
 <div class="legal-section" id="s15"><h2>15. General</h2><p>If any provision is unenforceable, the remainder remains in effect. These Terms constitute the entire agreement regarding the Software.</p></div>
 <div class="legal-section" id="s16"><h2>16. Contact</h2><p>For questions about these Terms, contact Ingot Solutions at ingot.solutions or through the support channels provided with your license.</p></div>
-<div class="legal-footer">© 2026 Ingot Solutions. All rights reserved. &nbsp;·&nbsp; Version 1.2</div>
+<div class="legal-footer">© 2026 Ingot Solutions. All rights reserved. &nbsp;·&nbsp; Version 1.3</div>
 </div>""", unsafe_allow_html=True)
 
 
@@ -459,9 +446,7 @@ def render_privacy_content() -> None:
   <p>Clarivise (Scan &amp; Shield) — Ingot Solutions &nbsp;·&nbsp; Last updated: May 9, 2026</p>
 </div>
 <div class="legal-section"><h2>Overview</h2><p>Clarivise is a suite of AI-powered email security products for Microsoft 365. <strong>Clarivise Scan</strong> is a Chrome extension for on-demand email analysis in Outlook Web. <strong>Clarivise Shield</strong> is a mail transport pipeline that automatically analyzes inbound email at the M365 layer. This policy covers both products.</p></div>
-
 <div class="legal-section"><h2>Product Key Signup Portal</h2><p>If you request a product key through the signup portal, you provide <strong>first name, last name, phone number, company name, and mailing address</strong> via Supabase Auth. That information is used to issue and manage keys, operate the service, and contact you if needed. It is <strong>not sold</strong>.</p></div>
-
 <div class="legal-section"><h2>Clarivise Scan — Data Collected</h2><p>When you click <strong>Analyze Email</strong>, the following is sent to the Supabase proxy:</p>
 <ul>
   <li>Email subject line, sender display name, recipient</li>
@@ -471,7 +456,6 @@ def render_privacy_content() -> None:
   <li>Whether Outlook flagged the sender as external</li>
   <li>Optional: your organization domain and custom instructions</li>
 </ul></div>
-
 <div class="legal-section"><h2>Clarivise Shield — Data Collected</h2><p>For every inbound external email, Shield receives and processes:</p>
 <ul>
   <li>Email subject line, sender, recipient</li>
@@ -481,7 +465,6 @@ def render_privacy_content() -> None:
   <li>M365 message ID and internet message ID</li>
 </ul>
 <p style="margin-top:.6rem;">Shield logs verdict metadata (verdict, scores, sender, subject, action taken) to a Supabase database. <strong>Full message body text is not stored.</strong></p></div>
-
 <div class="legal-section"><h2>Data Flow</h2>
 <table>
   <tr><th>Step</th><th>What happens</th><th>Who can see email content?</th></tr>
@@ -490,21 +473,15 @@ def render_privacy_content() -> None:
   <tr><td>Anthropic API</td><td>Analyzes the email and returns a verdict</td><td>Anthropic (see below)</td></tr>
   <tr><td>Response</td><td>Verdict returned and displayed / actioned</td><td>You / your org admin</td></tr>
 </table></div>
-
 <div class="legal-section"><h2>Anthropic API</h2><ul>
   <li>API inputs are <strong>not used for model training</strong> by default.</li>
   <li>API data may be <strong>retained for up to 30 days</strong> for trust and safety purposes, then deleted.</li>
   <li>Your use is subject to Anthropic's Privacy Policy and Terms of Service.</li>
 </ul></div>
-
 <div class="legal-section"><h2>Data Sharing</h2><p>We do not sell, share, or disclose user data to any third party. Email data is transmitted only to <strong>Supabase</strong> (infrastructure, data processor) and <strong>Anthropic</strong> (AI analysis). No other parties receive any data.</p></div>
-
 <div class="legal-section"><h2>Children's Privacy</h2><p>These products are not directed at children under 13 and do not knowingly collect data from children.</p></div>
-
 <div class="legal-section"><h2>Changes to This Policy</h2><p>This policy may be updated periodically. The date at the top reflects the most recent revision. Continued use constitutes acceptance.</p></div>
-
 <div class="legal-section"><h2>Contact</h2><p>For privacy questions, contact Ingot Solutions at ingot.solutions or through the support channels provided with your license.</p></div>
-
 <div class="legal-footer">© 2026 Ingot Solutions. All rights reserved.</div>
 </div>""", unsafe_allow_html=True)
 
@@ -769,7 +746,7 @@ def run_key_request_page() -> None:
     _inject_saas_theme()
     render_sidebar_navigation(p)
     render_in_page_navigation(p)
-    st.caption(f"**Clarivise Scan** — sign in, then complete the form to generate your extension token.")
+    st.caption("**Clarivise Scan** — sign in, then complete the form to generate your extension token.")
     st.markdown("#### Account")
     anon = get_anon_client()
     if not anon:
