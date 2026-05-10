@@ -260,7 +260,7 @@ def render_portal_landing(p: dict[str, str]) -> None:
       <span class="saas-pill">Claude AI analysis</span>
       <span class="saas-pill">No API keys in the browser</span>
       <span class="saas-pill">Built for Microsoft 365</span>
-      <span class="saas-pill">Prompt caching — 90% cost reduction</span>
+      <span class="saas-pill">Your data is yours — we never store or train on it</span>
     </div>
   </div>
 </div>""", unsafe_allow_html=True)
@@ -269,9 +269,9 @@ def render_portal_landing(p: dict[str, str]) -> None:
 <div class="saas-trust">
   <span><strong>Server-side</strong> — Anthropic keys stay in Supabase, never in the browser</span>
   <span class="dot">·</span>
-  <span><strong>Two layers</strong> — on-demand analysis and automatic mail transport protection</span>
+  <span><strong>Zero retention</strong> — we never store your email content</span>
   <span class="dot">·</span>
-  <span><strong>AI-powered</strong> — real-time phishing, spam, and BEC detection</span>
+  <span><strong>Never trained on</strong> — your emails are never used to train any AI model</span>
 </div>""", unsafe_allow_html=True)
 
     st.markdown('<p class="saas-section-title" style="margin-top:0.5rem;">Our products</p>', unsafe_allow_html=True)
@@ -323,7 +323,7 @@ def render_portal_landing(p: dict[str, str]) -> None:
     st.markdown('<div style="margin:1.5rem 0 .75rem;"><p class="saas-section-title">Clarivise Shield</p><h2 class="saas-h2" style="margin-top:0">Automatic protection at the transport layer</h2></div>', unsafe_allow_html=True)
     st.markdown("""
 <div class="saas-steps">
-  <div class="saas-step"><div class="n">1</div><h4>Connect to M365</h4><p>A mail flow rule journals every inbound external email to Shield before it reaches any inbox.</p></div>
+  <div class="saas-step"><div class="n">1</div><h4>Connect to M365</h4><p>A mail flow rule copies every inbound external email to Shield before it reaches any inbox.</p></div>
   <div class="saas-step"><div class="n">2</div><h4>Claude analyzes</h4><p>Every email is scored for phishing, spam, BEC, and lookalike domains using Claude AI with prompt caching.</p></div>
   <div class="saas-step"><div class="n">3</div><h4>Automatic action</h4><p>SAFE emails deliver normally. SUSPICIOUS emails get tagged. PHISHING emails are quarantined for admin review.</p></div>
   <div class="saas-step"><div class="n">4</div><h4>Daily summary</h4><p>IT receives a daily email with all verdicts, threat counts, and flagged senders.</p></div>
@@ -366,11 +366,17 @@ def render_portal_landing(p: dict[str, str]) -> None:
 
     with st.expander("How the AI analysis works", expanded=False):
         st.markdown("""
-Both products use **Claude AI** (Anthropic) via a secure **Supabase Edge Function**. Email metadata is sent server-side — your Anthropic API key never leaves the server.
+Both products use **Claude AI** (Anthropic) via a secure **Supabase Edge Function**. Email content is analyzed server-side and never touches your browser in plain text.
 
-**What's analyzed:** sender domain vs display name, link destinations vs display text, attachment names and extensions, body text patterns (urgency, credential requests, gift card asks), Reply-To vs From domain mismatches, lookalike domain detection (typosquatting).
+**Your data is yours — full stop.**
 
-**Cost efficiency:** both products use **prompt caching** — the analysis system prompt is cached at Anthropic, reducing per-email AI cost by ~40% on input tokens.
+- 🔒 **We do not store your email content.** Only verdict metadata (sender, subject line, score, verdict) is logged for your dashboard. The full message body is never written to disk.
+- 🚫 **We do not train any AI on your emails — ever.** Your emails are not used to improve any model, by us or anyone else.
+- 🤝 **Your information is your own.** We do not sell, share, or disclose your email data to any third party.
+- ⚡ **In-memory only.** Email content passes through our servers, is analyzed, and is discarded immediately after the verdict is returned.
+- 📋 **Anthropic's commitment.** Anthropic (the maker of Claude) does not use API inputs for model training by default. Any data retained for trust and safety purposes is deleted within 30 days.
+
+**What gets analyzed:** sender domain vs display name, link destinations vs display text, attachment names, body text patterns (urgency, credential requests, gift card asks), Reply-To vs From mismatches, and lookalike domain detection.
         """)
 
 
@@ -441,9 +447,17 @@ def render_privacy_content() -> None:
 <div class="legal-container">
 <div class="legal-hero" style="background:linear-gradient(135deg,#0f172a 0%,#1a4731 100%);">
   <h1>🔒 Privacy Policy</h1>
-  <p>Clarivise (Scan &amp; Shield) — Ingot Solutions &nbsp;·&nbsp; Last updated: May 9, 2026</p>
+  <p>Clarivise (Scan &amp; Shield) — Ingot Solutions &nbsp;·&nbsp; Last updated: May 10, 2026</p>
 </div>
 <div class="legal-section"><h2>Overview</h2><p>Clarivise is a suite of AI-powered email security products for Microsoft 365. <strong>Clarivise Scan</strong> is a Chrome extension for on-demand email analysis in Outlook Web. <strong>Clarivise Shield</strong> is a mail transport pipeline that automatically analyzes inbound email at the M365 layer. This policy covers both products.</p></div>
+<div class="legal-section"><h2>Your Data Is Yours</h2>
+<p>We built Clarivise on a simple principle: your email is private and it stays that way.</p>
+<ul>
+  <li><strong>We do not store your email content.</strong> Full message bodies are never written to disk. Only verdict metadata (sender, subject, score, verdict, action taken) is logged for your dashboard.</li>
+  <li><strong>We do not train any AI model on your emails — ever.</strong> Your email content is never used to train, fine-tune, or improve any model by us or any third party.</li>
+  <li><strong>Your information is your own.</strong> We do not sell, share, or disclose your email data to any third party for any purpose.</li>
+  <li><strong>In-memory processing only.</strong> Email content passes through our servers, is analyzed, and is discarded immediately after the verdict is returned.</li>
+</ul></div>
 <div class="legal-section"><h2>Product Key Signup Portal</h2><p>If you request a product key through the signup portal, you provide <strong>first name, last name, phone number, company name, and mailing address</strong> via Supabase Auth. That information is used to issue and manage keys, operate the service, and contact you if needed. It is <strong>not sold</strong>.</p></div>
 <div class="legal-section"><h2>Clarivise Scan — Data Collected</h2><p>When you click <strong>Analyze Email</strong>, the following is sent to the Supabase proxy:</p>
 <ul>
@@ -462,18 +476,18 @@ def render_privacy_content() -> None:
   <li>Attachment file names (if present)</li>
   <li>M365 message ID and internet message ID</li>
 </ul>
-<p style="margin-top:.6rem;">Shield logs verdict metadata (verdict, scores, sender, subject, action taken) to a Supabase database. <strong>Full message body text is not stored.</strong></p></div>
+<p style="margin-top:.6rem;">Shield logs verdict metadata only. <strong>Full message body text is never stored.</strong></p></div>
 <div class="legal-section"><h2>Data Flow</h2>
 <table>
   <tr><th>Step</th><th>What happens</th><th>Who can see email content?</th></tr>
   <tr><td>Your browser / M365</td><td>Email data extracted and sent over HTTPS</td><td>You / your org only</td></tr>
-  <tr><td>Supabase Edge Function</td><td>Validates token, builds AI prompt, forwards to Anthropic</td><td>In memory only — not logged by Supabase</td></tr>
+  <tr><td>Supabase Edge Function</td><td>Validates token, builds AI prompt, forwards to Anthropic</td><td>In memory only — not stored</td></tr>
   <tr><td>Anthropic API</td><td>Analyzes the email and returns a verdict</td><td>Anthropic (see below)</td></tr>
-  <tr><td>Response</td><td>Verdict returned and displayed / actioned</td><td>You / your org admin</td></tr>
+  <tr><td>Response</td><td>Verdict returned and displayed / actioned. Email content discarded.</td><td>You / your org admin</td></tr>
 </table></div>
 <div class="legal-section"><h2>Anthropic API</h2><ul>
   <li>API inputs are <strong>not used for model training</strong> by default.</li>
-  <li>API data may be <strong>retained for up to 30 days</strong> for trust and safety purposes, then deleted.</li>
+  <li>API data may be retained for up to 30 days for trust and safety purposes only, then permanently deleted.</li>
   <li>Your use is subject to Anthropic's Privacy Policy and Terms of Service.</li>
 </ul></div>
 <div class="legal-section"><h2>Data Sharing</h2><p>We do not sell, share, or disclose user data to any third party. Email data is transmitted only to <strong>Supabase</strong> (infrastructure, data processor) and <strong>Anthropic</strong> (AI analysis). No other parties receive any data.</p></div>
