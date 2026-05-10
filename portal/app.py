@@ -20,10 +20,10 @@ SB_ACCESS = "sb_access_token"
 SB_REFRESH = "sb_refresh_token"
 SB_ANON = "portal_anon_client"
 
-PAGE_STREAMLIT_HOME = "streamlit_app.py"
-PAGE_REQUEST_KEY    = "pages/1_Request_a_key.py"
-PAGE_TERMS          = "pages/2_Terms.py"
-PAGE_PRIVACY        = "pages/3_Privacy.py"
+PAGE_HOME        = "streamlit_app.py"
+PAGE_REQUEST_KEY = "pages/1_Request_a_key.py"
+PAGE_TERMS       = "pages/2_Terms.py"
+PAGE_PRIVACY     = "pages/3_Privacy.py"
 
 
 def hash_token(plain: str) -> str:
@@ -54,9 +54,6 @@ def _secret(name: str) -> str:
     if v and str(v).strip():
         return str(v).strip()
     return (os.environ.get(name) or "").strip()
-
-def _legal_doc_urls() -> tuple[str, str]:
-    return "pages/2_Terms.py", "pages/3_Privacy.py"
 
 def _portal_bootstrap() -> dict[str, str]:
     return {
@@ -221,15 +218,15 @@ def render_sidebar_navigation(p: dict[str, str]) -> None:
         st.divider()
         st.caption("Products")
         st.markdown("📧 **Clarivise Scan** — you are here")
-        st.markdown("🛡️ **Clarivise Shield** — coming soon")
+        st.markdown("🛡️ **Clarivise Shield** — available now")
 
 def render_in_page_navigation(p: dict[str, str]) -> None:
     n1, n2, n3, n4 = st.columns(4)
     with n1:
         try:
-            st.page_link(PAGE_STREAMLIT_HOME, label="Home", icon="🏠", use_container_width=True)
+            st.page_link(PAGE_HOME, label="Home", icon="🏠", use_container_width=True)
         except TypeError:
-            st.page_link(PAGE_STREAMLIT_HOME, label="Home", icon="🏠")
+            st.page_link(PAGE_HOME, label="Home", icon="🏠")
     with n2:
         try:
             st.page_link(PAGE_REQUEST_KEY, label="Get a Key", icon="🔑", use_container_width=True)
@@ -267,7 +264,7 @@ def render_portal_landing(p: dict[str, str]) -> None:
 
     st.markdown("""
 <div class="saas-trust">
-  <span><strong>Server-side</strong> — Anthropic keys stay in Supabase, never in the browser</span>
+  <span><strong>Server-side processing</strong> — API keys never touch your browser</span>
   <span class="dot">·</span>
   <span><strong>Zero retention</strong> — we never store your email content</span>
   <span class="dot">·</span>
@@ -296,7 +293,7 @@ def render_portal_landing(p: dict[str, str]) -> None:
   </div>
 
   <div class="product-card shield">
-    <div class="product-badge">Clarivise Shield</div>
+    <div class="product-badge">Clarivise Shield — Available Now</div>
     <h2>🛡️ Automatic protection</h2>
     <p class="desc">A mail transport pipeline that intercepts every inbound email at the M365 layer — before it reaches the inbox. Claude analyzes each message and automatically tags, junks, or quarantines threats.</p>
     <ul class="feature-list">
@@ -324,7 +321,7 @@ def render_portal_landing(p: dict[str, str]) -> None:
     st.markdown("""
 <div class="saas-steps">
   <div class="saas-step"><div class="n">1</div><h4>Connect to M365</h4><p>A mail flow rule copies every inbound external email to Shield before it reaches any inbox.</p></div>
-  <div class="saas-step"><div class="n">2</div><h4>Claude analyzes</h4><p>Every email is scored for phishing, spam, BEC, and lookalike domains using Claude AI with prompt caching.</p></div>
+  <div class="saas-step"><div class="n">2</div><h4>Claude analyzes</h4><p>Every email is scored for phishing, spam, BEC, and lookalike domains using Claude AI.</p></div>
   <div class="saas-step"><div class="n">3</div><h4>Automatic action</h4><p>SAFE emails deliver normally. SUSPICIOUS emails get tagged. PHISHING emails are quarantined for admin review.</p></div>
   <div class="saas-step"><div class="n">4</div><h4>Daily summary</h4><p>IT receives a daily email with all verdicts, threat counts, and flagged senders.</p></div>
 </div>""", unsafe_allow_html=True)
@@ -366,7 +363,7 @@ def render_portal_landing(p: dict[str, str]) -> None:
 
     with st.expander("How the AI analysis works", expanded=False):
         st.markdown("""
-Both products use **Claude AI** (Anthropic) via a secure **Supabase Edge Function**. Email content is analyzed server-side and never touches your browser in plain text.
+Both products use **Claude AI** (Anthropic) via a secure server-side proxy. Email content is analyzed on our servers and never touches your browser in plain text.
 
 **Your data is yours — full stop.**
 
@@ -395,7 +392,7 @@ def render_home_cta(anon: Optional[Client], p: dict[str, str]) -> None:
                 st.error("Use **Get a Key** in the navigation above.")
     st.caption("Interested in Clarivise Shield for your organization? Contact us at shawn@ingotsolutions.com")
     if not anon:
-        st.warning("Add **SUPABASE_ANON_KEY** to Streamlit secrets to enable sign-in.")
+        st.warning("Credentials not configured — contact your administrator.")
 
 
 # ── Terms page ─────────────────────────────────────────────────────────────────
@@ -429,7 +426,7 @@ def render_terms_content() -> None:
 <div class="legal-section" id="s6"><h2>6. Indemnity</h2><p>You will defend, indemnify, and hold harmless Ingot Solutions and its officers, directors, employees, and agents from and against any claims, damages, losses, liabilities, costs, and expenses (including reasonable legal fees) arising out of or related to: (a) your use of the Software; (b) your violation of these Terms; (c) your violation of any law or third-party right; or (d) data you submit through the Software or signup portal.</p></div>
 <div class="legal-section" id="s7"><h2>7. License and Restrictions</h2><p>Subject to these Terms, Ingot Solutions grants you a limited, non-exclusive, non-transferable, revocable license to use the Software. You may not reverse engineer, resell, sublicense, or use the Software to build a competing product. Product keys are for your internal use only.</p></div>
 <div class="legal-section" id="s8"><h2>8. Signup Portal and Account Data</h2><p>If you request a product key through the signup portal, you may be asked to provide <strong>name, work email, phone number, company name, and mailing address.</strong> That information is used to fulfill your request, operate licensing, and communicate with you. It is not sold.</p></div>
-<div class="legal-section" id="s9"><h2>9. Third-Party Services</h2><p>The Software relies on infrastructure and AI providers including Supabase and Anthropic. Your use is also subject to their applicable terms and policies.</p></div>
+<div class="legal-section" id="s9"><h2>9. Third-Party Services</h2><p>The Software relies on cloud infrastructure and AI providers to deliver its service. Your use is also subject to their applicable terms and policies.</p></div>
 <div class="legal-section" id="s10"><h2>10. Privacy</h2><p>Personal data collected through the extension and related services is described in our <strong>Privacy Policy</strong> (see the Privacy page in this portal).</p></div>
 <div class="legal-section" id="s11"><h2>11. Intellectual Property</h2><p>The Software, branding, and documentation are owned by Ingot Solutions or its licensors. Except for the limited license above, no rights are granted.</p></div>
 <div class="legal-section" id="s12"><h2>12. Suspension and Termination</h2><p>We may suspend or terminate access if you breach these Terms, if required by law, or to protect security. Provisions that by nature should survive termination do survive.</p></div>
@@ -437,7 +434,7 @@ def render_terms_content() -> None:
 <div class="legal-section" id="s14"><h2>14. Governing Law and Venue</h2><p>These Terms are governed by the laws of the <strong>Province of Alberta</strong> and the federal laws of <strong>Canada</strong>. You attorn to the exclusive jurisdiction of the courts located in Alberta.</p></div>
 <div class="legal-section" id="s15"><h2>15. General</h2><p>If any provision is unenforceable, the remainder remains in effect. These Terms constitute the entire agreement regarding the Software.</p></div>
 <div class="legal-section" id="s16"><h2>16. Contact</h2><p>For questions about these Terms, contact Ingot Solutions at ingot.solutions or through the support channels provided with your license.</p></div>
-<div class="legal-footer">© 2026 Ingot Solutions. All rights reserved. &nbsp;·&nbsp; Version 1.3</div>
+<div class="legal-footer">© 2026 Ingot Solutions. All rights reserved. &nbsp;·&nbsp; Version 1.4</div>
 </div>""", unsafe_allow_html=True)
 
 
@@ -458,8 +455,8 @@ def render_privacy_content() -> None:
   <li><strong>Your information is your own.</strong> We do not sell, share, or disclose your email data to any third party for any purpose.</li>
   <li><strong>In-memory processing only.</strong> Email content passes through our servers, is analyzed, and is discarded immediately after the verdict is returned.</li>
 </ul></div>
-<div class="legal-section"><h2>Product Key Signup Portal</h2><p>If you request a product key through the signup portal, you provide <strong>first name, last name, phone number, company name, and mailing address</strong> via Supabase Auth. That information is used to issue and manage keys, operate the service, and contact you if needed. It is <strong>not sold</strong>.</p></div>
-<div class="legal-section"><h2>Clarivise Scan — Data Collected</h2><p>When you click <strong>Analyze Email</strong>, the following is sent to the Supabase proxy:</p>
+<div class="legal-section"><h2>Product Key Signup Portal</h2><p>If you request a product key through the signup portal, you provide <strong>first name, last name, phone number, company name, and mailing address</strong>. That information is used to issue and manage keys, operate the service, and contact you if needed. It is <strong>not sold</strong>.</p></div>
+<div class="legal-section"><h2>Clarivise Scan — Data Collected</h2><p>When you click <strong>Analyze Email</strong>, the following is sent to our secure analysis server:</p>
 <ul>
   <li>Email subject line, sender display name, recipient</li>
   <li>Email body text (up to 3,000 characters)</li>
@@ -481,16 +478,16 @@ def render_privacy_content() -> None:
 <table>
   <tr><th>Step</th><th>What happens</th><th>Who can see email content?</th></tr>
   <tr><td>Your browser / M365</td><td>Email data extracted and sent over HTTPS</td><td>You / your org only</td></tr>
-  <tr><td>Supabase Edge Function</td><td>Validates token, builds AI prompt, forwards to Anthropic</td><td>In memory only — not stored</td></tr>
-  <tr><td>Anthropic API</td><td>Analyzes the email and returns a verdict</td><td>Anthropic (see below)</td></tr>
+  <tr><td>Clarivise servers</td><td>Validates token, builds AI prompt, forwards to Claude AI</td><td>In memory only — not stored</td></tr>
+  <tr><td>Claude AI (Anthropic)</td><td>Analyzes the email and returns a verdict</td><td>Anthropic (see below)</td></tr>
   <tr><td>Response</td><td>Verdict returned and displayed / actioned. Email content discarded.</td><td>You / your org admin</td></tr>
 </table></div>
-<div class="legal-section"><h2>Anthropic API</h2><ul>
+<div class="legal-section"><h2>Claude AI (Anthropic)</h2><ul>
   <li>API inputs are <strong>not used for model training</strong> by default.</li>
   <li>API data may be retained for up to 30 days for trust and safety purposes only, then permanently deleted.</li>
   <li>Your use is subject to Anthropic's Privacy Policy and Terms of Service.</li>
 </ul></div>
-<div class="legal-section"><h2>Data Sharing</h2><p>We do not sell, share, or disclose user data to any third party. Email data is transmitted only to <strong>Supabase</strong> (infrastructure, data processor) and <strong>Anthropic</strong> (AI analysis). No other parties receive any data.</p></div>
+<div class="legal-section"><h2>Data Sharing</h2><p>We do not sell, share, or disclose user data to any third party. Email data is transmitted only to our secure analysis infrastructure and to <strong>Anthropic</strong> (Claude AI analysis). No other parties receive any data.</p></div>
 <div class="legal-section"><h2>Children's Privacy</h2><p>These products are not directed at children under 13 and do not knowingly collect data from children.</p></div>
 <div class="legal-section"><h2>Changes to This Policy</h2><p>This policy may be updated periodically. The date at the top reflects the most recent revision. Continued use constitutes acceptance.</p></div>
 <div class="legal-section"><h2>Contact</h2><p>For privacy questions, contact Ingot Solutions at ingot.solutions or through the support channels provided with your license.</p></div>
@@ -503,7 +500,7 @@ def get_supabase() -> Client:
     url = _secret("SUPABASE_URL")
     key = _secret("SUPABASE_SERVICE_ROLE_KEY")
     if not url or not key:
-        st.error("**Supabase credentials are not configured.**")
+        st.error("**Credentials are not configured.**")
         st.stop()
     return create_client(url, key)
 
@@ -694,7 +691,7 @@ def _render_key_request_form(anon: Client, p: dict[str, str]) -> None:
             "phone": phone[:32], "address_line1": address_line1[:200],
             "address_line2": address_line2[:200] if address_line2 else None,
             "city": city[:100], "region": region[:100], "postal_code": postal_code[:32],
-            "country": country[:100], "signup_source": "streamlit",
+            "country": country[:100], "signup_source": "portal",
             "auth_user_id": auth_uid if auth_uid else None,
         }).execute()
         if not cust.data:
@@ -762,7 +759,7 @@ def run_key_request_page() -> None:
     st.markdown("#### Account")
     anon = get_anon_client()
     if not anon:
-        st.error("**SUPABASE_ANON_KEY** is missing from Streamlit secrets.")
+        st.error("**Credentials are not configured.** Contact your administrator.")
         st.stop()
     _render_key_request_form(anon, p)
 
