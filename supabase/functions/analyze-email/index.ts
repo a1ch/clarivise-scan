@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { checkExtensionToken, hashToken } from "../_shared/extension-auth.ts"
 
@@ -309,6 +309,8 @@ KEY RULES:
    d. If "Sent via" is an unknown relay: note it; known ESPs are normal for marketing.
 9. LOOKALIKE DOMAIN RULE: Any domain flagged as LOOKALIKE ALERT MUST be included as a finding. Set verdict to at least SUSPICIOUS.
 10. GIFT CARD RULE: Any request to purchase or send gift cards MUST be flagged as PHISHING with phishing_score 99. Always fraud.
+11. CRYPTO RULE: Any unsolicited email referencing cryptocurrency, Bitcoin, Ethereum, NFTs, crypto wallets, crypto trading platforms, crypto investment returns, or "passive income" from digital assets = minimum SUSPICIOUS, phishing_score at least 65. If it promises returns, profits, or asks the recipient to send, receive, or invest crypto = PHISHING, phishing_score 90+. Exception: transactional emails from a legitimate crypto exchange the user clearly signed up for (Coinbase, Kraken, Binance order confirmations etc.) are treated like any other transactional email.
+12. RESOLVED DESTINATION MISMATCH: If a link is marked RESOLVED DESTINATION MISMATCH it means a URL shortener was followed and the final destination domain does not match the sender domain and is not a known trusted platform. Treat this as a high-confidence phishing signal — flag as a finding and set verdict to at least SUSPICIOUS, or PHISHING if combined with other red flags.
 
 ENVIRONMENT RULES:
 - This org uses Trend Micro and Microsoft SafeLinks. ALL links route through safelinks.protection.outlook.com or Trend Micro URL filters. Do NOT flag these wrappers — links are already decoded.
@@ -329,7 +331,7 @@ LINK ANALYSIS RULES:
 1. Do NOT flag safelinks.protection.outlook.com or urldefense.com — already decoded.
 2. Flag display text showing one domain but real destination is completely different.
 3. Any link marked LOOKALIKE ALERT has been algorithmically verified — treat as confirmed and MUST flag as a finding.
-4. Flag URL shorteners (bit.ly, tinyurl, t.co).
+4. Google-owned short links (c.gle, goo.gl, g.co) in official Google emails are legitimate — note as informational only, do not increase phishing score. Other URL shorteners (bit.ly, tinyurl, t.co) in non-marketing emails should be flagged. If a link is marked RESOLVED DESTINATION MISMATCH, see rule 12 above.
 5. For lookalike domains: explain the deception technique in plain English.
 
 EDUCATION FOCUS — CRITICAL:
