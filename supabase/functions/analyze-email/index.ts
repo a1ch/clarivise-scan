@@ -1,6 +1,7 @@
 ﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { checkExtensionToken, hashToken } from "../_shared/extension-auth.ts"
+import { verifyEntraToken } from "../_shared/entra-auth.ts"
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!
 const LEGACY_EXTENSION_TOKEN = Deno.env.get("EXTENSION_TOKEN") ?? undefined
@@ -15,7 +16,7 @@ const ALLOWED_ORIGINS = [
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, x-extension-token",
+  "Access-Control-Allow-Headers": "Content-Type, x-extension-token, authorization",
 }
 
 // ── Detection rules (server-side only) ──────────────────────────────────────
@@ -513,13 +514,29 @@ serve(async (req) => {
   const raw = parsedBody as Record<string, unknown>
   const bodyToken = (typeof raw?.oeAuth === "string" ? raw.oeAuth : "") || (typeof raw?.token === "string" ? raw.token : "")
   const token = headerToken || bodyToken
-  if (!token) return json({ error: "Unauthorized" }, 401, corsHeaders)
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-  const auth = await checkExtensionToken(supabase, token, LEGACY_EXTENSION_TOKEN)
-  if (!auth.ok) {
-    const err = auth.reason === "expired" ? "License expired — request a new key from your administrator." : "Unauthorized"
-    return json({ error: err }, 401, corsHeaders)
+
+  // Authentication: prefer Entra SSO (Authorization: Bearer), fall back to extension token.
+  let authSubject = ""
+  const authHeader = req.headers.get("authorization") ?? ""
+  if (authHeader.toLowerCase().startsWith("bearer ")) {
+    const sso = await verifyEntraToken(authHeader.slice(7).trim())
+    if (sso.ok) {
+      authSubject = "sso:" + sso.email
+    } else if (sso.reason === "domain_not_allowed") {
+      return json({ error: "Your email domain is not authorized for Clarivise Scan. Contact your administrator." }, 403, corsHeaders)
+    }
+    // invalid/expired SSO token falls through to the legacy token check below
+  }
+  if (!authSubject) {
+    if (!token) return json({ error: "Unauthorized" }, 401, corsHeaders)
+    const auth = await checkExtensionToken(supabase, token, LEGACY_EXTENSION_TOKEN)
+    if (!auth.ok) {
+      const err = auth.reason === "expired" ? "License expired — request a new key from your administrator." : "Unauthorized"
+      return json({ error: err }, 401, corsHeaders)
+    }
+    authSubject = token
   }
 
   if (parsedBody !== null && typeof parsedBody === "object" && !Array.isArray(parsedBody) && (parsedBody as { ping?: boolean }).ping === true) {
@@ -527,7 +544,7 @@ serve(async (req) => {
   }
 
   // ── Rate limiting ─────────────────────────────────────────────────────────
-  const tokenKey = await hashToken(token)
+  const tokenKey = await hashToken(authSubject)
   const now = Date.now()
   const windowStart = new Date(now - RATE_LIMIT_WINDOW_MS).toISOString()
   const { count } = await supabase.from("rate_limit_log").select("*", { count: "exact", head: true }).eq("token_key", tokenKey).gte("created_at", windowStart)
