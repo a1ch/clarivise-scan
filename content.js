@@ -1,4 +1,4 @@
-﻿// Clarivise Scan - Content Script
+// Clarivise Scan - Content Script
 let sidebar = null;
 let lastEmailId = null;
 let observer = null;
@@ -158,6 +158,10 @@ function createSidebar() {
   });
   document.getElementById('oe-tab').addEventListener('click', () => {
     sidebar.classList.remove('oe-collapsed');
+    // Auto-scan the currently open email when the tab is clicked (no need to press Analyze)
+    if (document.getElementById('oe-loading')) return; // already analyzing
+    try { chrome.runtime.sendMessage({ type: 'PING' }); } catch(e) {}
+    setTimeout(analyzeCurrentEmail, 150);
   });
 
   // Ping service worker to wake it, then analyze
