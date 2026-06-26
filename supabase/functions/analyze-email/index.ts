@@ -1,4 +1,4 @@
-﻿import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { checkExtensionToken, hashToken } from "../_shared/extension-auth.ts"
 import { verifyEntraToken } from "../_shared/entra-auth.ts"
@@ -7,6 +7,8 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!
 const LEGACY_EXTENSION_TOKEN = Deno.env.get("EXTENSION_TOKEN") ?? undefined
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+// Per-identity monthly scan cap. Set MONTHLY_SCAN_LIMIT=0 to disable. Configurable without redeploy.
+const MONTHLY_SCAN_LIMIT = parseInt(Deno.env.get("MONTHLY_SCAN_LIMIT") ?? "300", 10)
 
 const ALLOWED_ORIGINS = [
   "https://outlook.office.com",
@@ -595,6 +597,25 @@ serve(async (req) => {
       lesson: 'No legitimate business transaction is ever completed with gift cards. If someone asks you to buy gift cards and send the codes, it is a scam — 100% of the time.',
       suggested_action: 'Do NOT purchase any gift cards. Report this email to your IT security team and your manager immediately.'
     }}, 200, corsHeaders)
+  }
+
+  // ── Monthly quota ─────────────────────────────────────────────────────────
+  // Only real AI scans count — the gift-card fast path above returns for free.
+  if (Number.isFinite(MONTHLY_SCAN_LIMIT) && MONTHLY_SCAN_LIMIT > 0) {
+    const period = new Date().toISOString().slice(0, 7) // 'YYYY-MM' (UTC)
+    const { data: quota, error: quotaErr } = await supabase.rpc("increment_scan_usage", {
+      p_token_key: tokenKey,
+      p_period: period,
+      p_limit: MONTHLY_SCAN_LIMIT,
+    })
+    const row = Array.isArray(quota) ? quota[0] : quota
+    if (!quotaErr && row && row.allowed === false) {
+      return json({
+        error: `Monthly scan limit reached (${MONTHLY_SCAN_LIMIT} scans this month). Your limit resets at the start of next month. Contact your administrator if you need more.`,
+        limitReached: true,
+      }, 429, { ...corsHeaders, "Retry-After": "3600" })
+    }
+    // On RPC error (e.g. migration not yet applied) we fail open so scanning keeps working.
   }
 
   const userMessage = buildUserMessage(emailData, customPrompt, tenantDomain)
