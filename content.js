@@ -51,6 +51,67 @@ function buildLinkRowHtml(l, lookalikeHit) {
   </div>`;
 }
 
+// --- QR / quishing: decode QR codes from inline images in the email body ---
+async function decodeQrFromImage(img) {
+  try {
+    const w = img.naturalWidth || img.width || 0;
+    const h = img.naturalHeight || img.height || 0;
+    if (w < 40 || h < 40) return null;            // skip tracking pixels / spacers
+    if (typeof jsQR !== 'function') return null;
+    let bitmap = null;
+    try {
+      const resp = await fetch(img.src, { credentials: 'include' });
+      const blob = await resp.blob();
+      bitmap = await createImageBitmap(blob);
+    } catch (e) {
+      try { bitmap = await createImageBitmap(img); } catch (e2) { return null; }
+    }
+    const cw = Math.min(bitmap.width, 1200), ch = Math.min(bitmap.height, 1200);
+    const canvas = new OffscreenCanvas(cw, ch);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bitmap, 0, 0, cw, ch);
+    const imgData = ctx.getImageData(0, 0, cw, ch);
+    const code = jsQR(imgData.data, imgData.width, imgData.height);
+    return (code && code.data) ? String(code.data).trim() : null;
+  } catch (e) { return null; }
+}
+
+// Pure: turn a decoded QR payload into { decodedUrl, host } or null (ignores wifi/text/vcard).
+function qrPayloadToUrl(decoded) {
+  if (!decoded) return null;
+  let url = String(decoded).trim();
+  if (!/^https?:\/\//i.test(url)) {
+    if (/^www\./i.test(url) || /^[\w.-]+\.[a-z]{2,}(?:\/|$)/i.test(url)) url = 'https://' + url;
+    else return null;
+  }
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return { decodedUrl: url, host };
+  } catch (e) { return null; }
+}
+
+// Scan up to 15 body images, decode any QR codes, keep URL-like payloads (quishing targets).
+async function extractQrLinks(bodyEl) {
+  const out = [];
+  if (!bodyEl) return out;
+  try {
+    const imgs = Array.from(bodyEl.querySelectorAll('img')).slice(0, 15);
+    const seen = new Set();
+    for (const img of imgs) {
+      const decoded = await decodeQrFromImage(img);
+      if (!decoded) continue;
+      const parsed = qrPayloadToUrl(decoded);
+      if (!parsed) continue;                        // ignore non-URL QR payloads (wifi/text/vcard)
+      const url = parsed.decodedUrl, host = parsed.host;
+      const key = host + '|' + url;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ decodedUrl: url, host });
+    }
+  } catch (e) {}
+  return out;
+}
+
 /** One-line fix + label for common error strings from the background / network. */
 function getErrorUi(fullMessage) {
   const m = String(fullMessage || '')
@@ -634,6 +695,24 @@ async function analyzeCurrentEmail() {
 
   const headerSignals = extractHeaderSignals(getReadingPane());
 
+  // --- QR / quishing detection: decode QR codes from inline images, reveal hidden destination ---
+  let qrLinks = [];
+  try {
+    const qrPane = getReadingPane();
+    const bodyElForQr = qrPane.querySelector('[aria-label="Message body"]') ||
+      qrPane.querySelector('div[class*="UniqueMessageBody"]') ||
+      qrPane.querySelector('[id*="UniqueMessageBody"]') ||
+      qrPane.querySelector('div[class*="messageBody"]');
+    const qr = await extractQrLinks(bodyElForQr);
+    qrLinks = qr.map(q => q.decodedUrl);
+    email.qrLinks = qrLinks;
+    const existingUrls = new Set((email.links || []).map(l => l.fullUrl));
+    qr.forEach(q => {
+      if (existingUrls.has(q.decodedUrl)) return;
+      email.links.push({ display: 'QR code image', href: q.host, fullUrl: q.decodedUrl, mismatch: false, isQr: true });
+    });
+  } catch (e) {}
+
   const emailData = {
     subject: email.subject,
     sender: email.sender,
@@ -641,6 +720,8 @@ async function analyzeCurrentEmail() {
     body: email.body,
     links: email.links,
     attachments: email.attachments,
+    qrLinks: qrLinks,
+    hasQrCode: qrLinks.length > 0,
     isOutlookExternal: isOutlookExternal,
     // Header-derived signals
     replyTo: headerSignals.replyTo,    onBehalfOf: headerSignals.onBehalfOf,
@@ -856,6 +937,14 @@ function showResult(result, email) {
               ? '<span class="oe-attach-badge oe-badge-susp">SUSPICIOUS</span>'
               : '';
         return `<div class="oe-attach-row ${cls}">${icon} <span class="oe-attach-name">${escapeHtml(name)}</span>${badge}</div>`;
+      }).join('')}
+    </div>` : ''}
+    ${email.qrLinks && email.qrLinks.length > 0 ? `
+    <div class="oe-section oe-qr-section">
+      <div class="oe-section-title">🔳 QR code detected — hidden link</div>
+      ${email.qrLinks.map(u => {
+        let qrHost = u; try { qrHost = new URL(u).hostname; } catch (e) {}
+        return `<div class="oe-qr-row">⚠️ This email hides a link inside a QR image → <strong>${escapeHtml(qrHost)}</strong><span class="oe-qr-url">${escapeHtml(u)}</span></div>`;
       }).join('')}
     </div>` : ''}
     ${email.links && email.links.length > 0 ? `    <div class="oe-section">

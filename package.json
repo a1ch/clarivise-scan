@@ -14,5 +14,8 @@
   "devDependencies": {
     "jest": "^29.0.0",
     "supabase": "^2.84.5"
+  },
+  "dependencies": {
+    "jsqr": "^1.4.0"
   }
 }

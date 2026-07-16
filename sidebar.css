@@ -690,3 +690,28 @@
 .oe-link.oe-link-lookalike .oe-link-dest { color: #7c00cc; font-weight: 700; }
 .oe-dark .oe-link.oe-link-lookalike .oe-link-dest { color: #c060ff; }
 .oe-dark .oe-link-lookalike-badge { background: #5a0099; }
+
+
+/* QR / quishing detection */
+.oe-qr-section { margin-top: 8px; }
+.oe-qr-row {
+  background: #fff3f3;
+  border-left: 3px solid #cc0000;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #8a1f1f;
+  margin-bottom: 4px;
+}
+.oe-qr-row strong { color: #cc0000; word-break: break-all; }
+.oe-qr-url {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.82em;
+  color: #555;
+  word-break: break-all;
+}
+.oe-dark .oe-qr-row { background: #2a1414; border-left-color: #ff6b6b; color: #f3b0b0; }
+.oe-dark .oe-qr-row strong { color: #ff6b6b; }
+.oe-dark .oe-qr-url { color: #b8b8b8; }

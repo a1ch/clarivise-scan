@@ -104,6 +104,8 @@ interface EmailData {
   doubleExtFiles?: string[]
   attachmentCount?: number
   hasHighAttachmentCount?: boolean
+  qrLinks?: string[]
+  hasQrCode?: boolean
   replyTo?: string | null
   onBehalfOf?: string | null
   viaHeader?: string | null
@@ -357,7 +359,7 @@ Payroll and direct-deposit diversion: A message pretending to be an employee ask
 
 OAuth and application-consent phishing: The email pushes you to grant an app or add-in access to your mailbox, files, or account, sometimes through a genuine Microsoft or Google consent screen so the page itself looks legitimate. How to spot it: unexpected requests to authorize, grant access to, or connect an unfamiliar application. Legitimate software rollouts are announced through known IT channels first.
 
-QR-code phishing (quishing): The email contains a QR code, often embedded as an image or inside an attachment, urging you to scan it with your phone to verify an account, review a document, or keep a service active. How to spot it: any unexpected QR code in an email, especially one tied to a login or a security action. Scanning on a phone deliberately sidesteps corporate link filtering, which is exactly why attackers use it. Flag unexpected QR-code prompts as SUSPICIOUS or higher when an action is requested.
+QR-code phishing (quishing): The email contains a QR code, often embedded as an image or inside an attachment, urging you to scan it with your phone to verify an account, review a document, or keep a service active. How to spot it: any unexpected QR code in an email, especially one tied to a login or a security action. Scanning on a phone deliberately sidesteps corporate link filtering, which is exactly why attackers use it. Flag unexpected QR-code prompts as SUSPICIOUS or higher when an action is requested. When a QR CODE DETECTED block below lists a decoded destination, treat it as a real, reader-hidden link and score it exactly as you would that URL appearing directly in the body.
 
 Callback or phone-based phishing (TOAD, telephone-oriented attack delivery): The email has no link at all - instead it shows a charge, subscription renewal, or fraud alert and a phone number to call to dispute it. How to spot it: an invoice or renewal for something you never bought, paired with a number to call. The call center is the scam; the agent will try to take payment or remote control of the computer.
 
@@ -575,6 +577,12 @@ function buildUserMessage(e: EmailData, customPrompt: string, tenantDomain: stri
     lookalikeWarning = `LOOKALIKE DOMAIN ALERT: MUST flag each as a finding. Set verdict >= SUSPICIOUS; if combined with credential requests or urgency, set PHISHING with phishing_score >= 85.\n${hitLines}\n`
   }
 
+  let qrWarning = ''
+  if (e.hasQrCode && (e.qrLinks || []).length > 0) {
+    const qrList = (e.qrLinks || []).map(u => `  - ${u}`).join('\n')
+    qrWarning = `QR CODE DETECTED IN EMAIL IMAGE(S) — the destination(s) below were decoded from a QR code embedded in the message and hidden from the reader (quishing). A QR code leading to a login, verification, payment, or credential page is SUSPICIOUS at minimum; if it requests credentials/payment or points to a lookalike or unexpected domain, set PHISHING. Add a finding that names the QR destination.\n${qrList}\n`
+  }
+
   return `Analyze this email. Current date/time: ${utcString} (UTC) / ${localString} (${tz}).
 ${orgContext}
 ${sharePointLine}
@@ -591,6 +599,7 @@ ${e.body}
 
 Attachments: ${attachmentList}
 ${attachmentWarning}
+${qrWarning}
 ${lookalikeWarning}
 EMBEDDED LINKS (already decoded from safelinks wrappers):
 ${linksBlock}`
@@ -673,6 +682,8 @@ serve(async (req) => {
     emailData.doubleExtFiles = attach.doubleExt
     emailData.attachmentCount = attach.count
     emailData.hasHighAttachmentCount = attach.highCount
+    emailData.qrLinks = (emailData.qrLinks || []).filter(u => typeof u === "string").slice(0, 10)
+    emailData.hasQrCode = emailData.qrLinks.length > 0
   } catch {
     return json({ error: "Invalid request body" }, 400, corsHeaders)
   }

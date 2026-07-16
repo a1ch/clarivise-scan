@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Clarivise Scan",
   "version": "1.1",
-  "description": "AI-powered phishing and spam detection for Microsoft 365. Scan any email on demand with one click — get an instant plain-English verdict, risk score, and actionable advice to keep your inbox safe.",
+  "description": "AI-powered phishing and spam detection for Microsoft 365. Scan any email on demand with one click - get an instant plain-English verdict, risk score, and actionable advice to keep your inbox safe.",
   "permissions": [
     "activeTab",
     "storage",
@@ -23,6 +23,7 @@
         "https://outlook.cloud.microsoft/*"
       ],
       "js": [
+        "jsqr.min.js",
         "content.js"
       ],
       "css": [

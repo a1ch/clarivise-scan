@@ -308,3 +308,73 @@ describe('decodeWrappedUrl', () => {
     expect(decodeWrappedUrl(url)).toBe(url)
   })
 })
+
+
+// ─── QR / quishing payload normalization ─────────────────────────────────────
+function qrPayloadToUrl(decoded) {
+  if (!decoded) return null;
+  let url = String(decoded).trim();
+  if (!/^https?:\/\//i.test(url)) {
+    if (/^www\./i.test(url) || /^[\w.-]+\.[a-z]{2,}(?:\/|$)/i.test(url)) url = 'https://' + url;
+    else return null;
+  }
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return { decodedUrl: url, host };
+  } catch (e) { return null; }
+}
+
+describe('qrPayloadToUrl (quishing QR normalization)', () => {
+  test('keeps a full https URL and lowercases host', () => {
+    expect(qrPayloadToUrl('https://Login.Micros0ft-verify.com/auth'))
+      .toEqual({ decodedUrl: 'https://Login.Micros0ft-verify.com/auth', host: 'login.micros0ft-verify.com' });
+  });
+  test('keeps a full http URL', () => {
+    expect(qrPayloadToUrl('http://example.com/x').host).toBe('example.com');
+  });
+  test('prepends https:// to a bare www. host', () => {
+    expect(qrPayloadToUrl('www.paypal-secure.com/login'))
+      .toEqual({ decodedUrl: 'https://www.paypal-secure.com/login', host: 'www.paypal-secure.com' });
+  });
+  test('prepends https:// to a bare domain', () => {
+    expect(qrPayloadToUrl('bit.ly/abc123'))
+      .toEqual({ decodedUrl: 'https://bit.ly/abc123', host: 'bit.ly' });
+  });
+  test('trims surrounding whitespace', () => {
+    expect(qrPayloadToUrl('   https://example.com  ').host).toBe('example.com');
+  });
+  test('ignores non-URL payloads (wifi/text/vcard/upi)', () => {
+    expect(qrPayloadToUrl('WIFI:S:MyNet;T:WPA;P:secret;;')).toBeNull();
+    expect(qrPayloadToUrl('just some text')).toBeNull();
+    expect(qrPayloadToUrl('BEGIN:VCARD')).toBeNull();
+    expect(qrPayloadToUrl('upi://pay?pa=x@bank')).toBeNull();
+  });
+  test('ignores empty / null / undefined', () => {
+    expect(qrPayloadToUrl('')).toBeNull();
+    expect(qrPayloadToUrl(null)).toBeNull();
+    expect(qrPayloadToUrl(undefined)).toBeNull();
+  });
+});
+
+describe('QR link merge into links (dedupe by fullUrl)', () => {
+  function mergeQrIntoLinks(links, qr) {
+    const existing = new Set((links || []).map(l => l.fullUrl));
+    qr.forEach(q => {
+      if (existing.has(q.decodedUrl)) return;
+      links.push({ display: 'QR code image', href: q.host, fullUrl: q.decodedUrl, mismatch: false, isQr: true });
+    });
+    return links;
+  }
+  test('adds a QR link that is not already present', () => {
+    const links = [{ display: 'a', href: 'example.com', fullUrl: 'https://example.com', mismatch: false }];
+    const out = mergeQrIntoLinks(links, [{ decodedUrl: 'https://evil.com/login', host: 'evil.com' }]);
+    expect(out).toHaveLength(2);
+    expect(out[1].isQr).toBe(true);
+    expect(out[1].fullUrl).toBe('https://evil.com/login');
+  });
+  test('does not duplicate a QR URL already present', () => {
+    const links = [{ display: 'x', href: 'evil.com', fullUrl: 'https://evil.com/login', mismatch: false }];
+    const out = mergeQrIntoLinks(links, [{ decodedUrl: 'https://evil.com/login', host: 'evil.com' }]);
+    expect(out).toHaveLength(1);
+  });
+});
